@@ -1,0 +1,22 @@
+[package]
+name = "umidedup"
+version = "0.1.0"
+authors = ["Arno Velds <a.velds@nki.nl>", "Roel Kluin <r.kluin@nki.nl>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.43"
+atoi = "0.4.0"
+umibk = { path = "../umibk/" }
+tokio = { version = "1.11", features = ["fs", "io-std", "macros", "rt"] }
+noodles-bam = { version = "0.6.0", features = ["async"] }
+noodles-sam = "0.5.0"
+clap = "2.33.3"
+thiserror = "1.0.28"
+regex = "1.5.4"
+itertools = "0.10.1"
+
+[profile.release]
+debug = 1
