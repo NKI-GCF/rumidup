@@ -1,13 +1,18 @@
 use std::convert::TryFrom;
-use std::num::NonZeroI32;
 
 use thiserror::Error;
-
-use noodles_bam as bam;
-use bam::record::Record;
-use noodles_sam::record::{Record as SamRecord, cigar::Cigar, data::field::tag::Tag,data::field::{Field, Value} , position::Position, Flags};
+use noodles_sam::record::{
+    cigar::Cigar,
+    data::field::tag::Tag,
+    data::field::{Field, Value},
+    position::Position,
+    Flags, Record as SamRecord,
+};
 use umibk::Dist;
 
+pub mod readname;
+
+#[derive(Debug)]
 pub struct UmiRecord {
     pub record: SamRecord,
     pub umi: Vec<u8>,
@@ -38,14 +43,11 @@ impl UmiRecord {
     }
 
     pub fn read_name(&self) -> &str {
-        self.record.read_name()
-            .map(|n| n.as_ref())
-            .unwrap_or("")
+        self.record.read_name().map(|n| n.as_ref()).unwrap_or("")
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {
-        self.dedup_primary_coord()
-            .zip(self.dedup_secondary_coord())
+        self.dedup_primary_coord().zip(self.dedup_secondary_coord())
     }
 
     pub fn is_paired(&self) -> bool {
@@ -70,7 +72,7 @@ impl UmiRecord {
                 Some(FragmentCoord::Read2Start(start + len))
             }
         } else if !paired || flags.is_read_1() {
-                Some(FragmentCoord::Read1Start(start))
+            Some(FragmentCoord::Read1Start(start))
         } else {
             Some(FragmentCoord::Read2Start(start))
         }
@@ -100,15 +102,14 @@ impl UmiRecord {
             let len = self.mate_cigar()?.reference_len() as i32;
             if flags.is_proper_pair() {
                 //test bam sanity
-                let start:i32 = self.record.position().map(|i| i.into())?;
-                debug_assert_eq!(mate_start + len - start,  self.record.template_length() )
+                let start: i32 = self.record.position().map(|i| i.into())?;
+                debug_assert_eq!(mate_start + len - start, self.record.template_length())
             }
             Some(FragmentCoord::MateStartRev(mate_start + len))
         } else {
             Some(FragmentCoord::MateStartFw(mate_start))
         }
     }
-
 
     pub fn is_dedup_candidate(&self) -> bool {
         let flags = self.record.flags();
@@ -120,45 +121,51 @@ impl UmiRecord {
         if self.record.flags().is_mate_unmapped() {
             None
         } else {
-            self.record.data()
-                .get(&Tag::Other("ms".to_string()))
-                .and_then(|f| f.value().as_str())
-                .and_then(|s| s.parse().ok())
+            self.record
+                .data()
+                .get(Tag::try_from(*b"ms").unwrap())
+                .and_then(|f| f.value().as_int())
+                .and_then(|v| u32::try_from(v).ok())
         }
     }
 
     pub fn mate_cigar(&self) -> Option<Cigar> {
-        self.record.data()
-            .get(&Tag::MateCigar)
+        self.record
+            .data()
+            .get(Tag::MateCigar)
             .and_then(|cs| cs.value().as_str())
             .and_then(|s| s.parse().ok())
     }
 
     pub fn score(&self) -> u32 {
         //FIXME cleanup?
-        let rs = self.record.quality_scores().iter().map(|&s| u8::from(s) as u32).sum();
+        let rs = self
+            .record
+            .quality_scores()
+            .iter()
+            .map(|&s| u8::from(s) as u32)
+            .sum();
         if let Some(ms) = self.ms() {
             rs + ms
         } else {
             rs
         }
-
     }
 
     pub fn flag_dup(&mut self) {
         self.record.flags_mut().set(Flags::DUPLICATE, true);
     }
-    
+
     pub fn unflag_dup(&mut self) {
         self.record.flags_mut().set(Flags::DUPLICATE, false);
     }
-    
-    pub fn modify_barcode_tag<T: Into<String>>(&mut self, tag: T) {
-        self.record.data_mut().insert(Tag::OriginalUmiBarcodeSequence, 
-            Field::new(
-                Tag::OriginalUmiBarcodeSequence,
-                Value::String(tag.into())
-            )
+
+    pub fn correct_barcode_tag<T: Into<String>>(&mut self, tag: T) {
+        let data = self.record.data_mut();
+
+        let old = data.insert(Field::new(Tag::UmiSequence, Value::String(tag.into()))).unwrap();
+        data.insert(
+            Field::new(Tag::OriginalUmiBarcodeSequence, Value::String(old.value().as_str().unwrap().to_owned()))
         );
     }
 }
@@ -166,20 +173,25 @@ impl UmiRecord {
 impl TryFrom<SamRecord> for UmiRecord {
     type Error = UmiError;
 
-    fn try_from(r: SamRecord) -> Result<UmiRecord, Self::Error> {
+    fn try_from(mut r: SamRecord) -> Result<UmiRecord, Self::Error> {
         // attempt 1 umi from read name
-        let maybe_umi = r.read_name()
+        let maybe_umi = r
+            .read_name()
             .and_then(|name| name.split(':').next_back())
             .map(|v| v.as_bytes().to_vec());
         if let Some(maybe_umi) = maybe_umi {
             if maybe_umi.len() > 3 && maybe_umi.iter().all(isbase) {
-                return Ok(UmiRecord { record: r, umi: maybe_umi.to_vec() });
+                let umi = maybe_umi.to_vec();
+                r.data_mut().insert(Field::new(Tag::UmiSequence, Value::String(String::from_utf8_lossy(&umi).to_string())));
+                return Ok(UmiRecord {
+                    record: r,
+                    umi,
+                });
             }
         }
         if let Some(umi) = record_umi_tag(&r) {
             return Ok(UmiRecord { record: r, umi });
         }
-
 
         Err(UmiError::NoUmi)
     }
@@ -187,7 +199,11 @@ impl TryFrom<SamRecord> for UmiRecord {
 
 impl Dist for UmiRecord {
     fn dist(&self, other: &UmiRecord) -> usize {
-        self.umi.iter().zip(other.umi.iter()).filter(|(a, b)| a != b).count()
+        self.umi
+            .iter()
+            .zip(other.umi.iter())
+            .filter(|(a, b)| a != b)
+            .count()
     }
 }
 
@@ -197,22 +213,17 @@ pub fn isbase(b: &u8) -> bool {
 
 // create extension  trait for record?
 pub fn record_umi_tag(record: &SamRecord) -> Option<Vec<u8>> {
-    record.data()
-        .get(&Tag::UmiSequence)
+    record
+        .data()
+        .get(Tag::UmiSequence)
         .and_then(|f| f.value().as_str())
         .map(|v| v.as_bytes().to_vec())
 }
-
-fn is_regular_pair(f: &Flags) -> bool {
-    !f.is_supplementary() && !f.is_secondary() && !f.is_unmapped() && !f.is_mate_unmapped()
-        && !f.is_reverse_complemented() && f.is_mate_reverse_complemented()
-}
-
 
 #[derive(Debug, Error)]
 pub enum UmiError {
     #[error("No umi in record")]
     NoUmi,
     #[error("No umi in record")]
-    NoReadName(#[from] std::ffi::FromBytesWithNulError)
+    NoReadName(#[from] std::ffi::FromBytesWithNulError),
 }

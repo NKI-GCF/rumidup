@@ -5,17 +5,14 @@
 
 use anyhow::Result;
 use tokio::io;
-use clap::App;
 
-
-pub mod record;
 pub mod reader;
+pub mod record;
 
 use reader::RecordStatus;
 
-#[tokio::main(flavor="current_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-
     let stdin = io::stdin();
     let stdout = io::stdout();
 
@@ -23,32 +20,42 @@ async fn main() -> Result<()> {
     let mut writer = reader.out_bam(stdout).await?;
 
     let mut pos = None;
-    let mut parts = reader::ReadPartitions::new();
-    while let Some(r) = reader.read_record().await? {
+    let mut parts = reader::ReadPartitions::default();
+    while let Some(mut r) = reader.read_record().await? {
+        //unmark current setting
+        r.unflag_dup();
         //steps
         // is read mapped?
         // already marked?
         // is mate mapped?
         // is paired?
         // is primary alignment
+        //FIXME also check read chr changes
         let read_pos = r.position();
-        if read_pos.is_some() && read_pos != pos && !parts.is_empty() {
-            //dedups parts
-            if parts.current_reads.len() > 50 {
-                eprintln!("dedup bundle for pos {:?}", read_pos);
-            }
-            parts.markduplicates(parts.current_reads.len() > 50);
-            for r in parts.current_reads.drain(..) {
-                writer.write_sam_record(&reader.reference_sequences, &r.record.into()).await?;
+        if read_pos.is_some() && read_pos != pos {
+            if !parts.is_empty() {
+                //dedups parts
+                if parts.current_reads.len() > 50 {
+                    eprintln!("dedup bundle for pos {:?}", read_pos);
+                }
+                parts.markduplicates();
+                for r in parts.iter_records() {
+                    writer
+                        .write_sam_record(&reader.reference_sequences, &r.record)
+                        .await?;
+                }
+                //dump mates using their mate result
+                parts.clear_partitions();
             }
             pos = read_pos;
-            parts.clear_partitions();
         }
 
         match parts.add_record(r) {
-            RecordStatus::PossibleDup | RecordStatus::Duplicate => {},
+            RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {},
             RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
-                writer.write_sam_record(&reader.reference_sequences, &r.into()).await?;
+                writer
+                    .write_sam_record(&reader.reference_sequences, &r.into())
+                    .await?;
             }
         }
     }
@@ -60,6 +67,4 @@ async fn main() -> Result<()> {
     writer.shutdown().await?;
 
     Ok(())
-
 }
-
