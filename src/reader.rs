@@ -38,12 +38,10 @@ where
     }
 
     pub async fn read_record(&mut self) -> Result<Option<UmiRecord>> {
-        match self.bam.read_record(&mut self.record_buf).await? {
+        let mut record = NoodlesRecord::default();
+        match self.bam.read_record(&mut record).await? {
             0 => Ok(None),
             _n => {
-                let record = self
-                    .record_buf
-                    .try_into_sam_record(&self.reference_sequences)?;
                 Ok(Some(UmiRecord::try_from(record)?))
             }
         }
@@ -105,11 +103,11 @@ impl umibk::Dist for UmiIndex {
 
 #[derive(Debug, Default)]
 pub struct ReadPartitions {
-    pub seen: AHashMap<String, MarkResult>,
+    pub seen: AHashMap<Vec<u8>, MarkResult>,
     pub current_reads: Vec<UmiRecord>,
     partitions: AHashMap<(FragmentCoord, FragmentCoord), BkTree<UmiIndex>>,
     // Mates wait for their mate to be decided.
-    in_partitions: AHashSet<String>,
+    in_partitions: AHashSet<Vec<u8>>,
     current_read_mates: Vec<UmiRecord>,
 }
 

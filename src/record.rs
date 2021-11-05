@@ -1,25 +1,25 @@
 use std::convert::TryFrom;
 
 use thiserror::Error;
-use noodles_sam::record::{
-    cigar::Cigar,
-    data::field::tag::Tag,
-    data::field::{Field, Value},
-    position::Position,
-    Flags, Record as SamRecord,
+use noodles_bam::record::{
+    Record as BamRecord,
+    cigar::{Cigar, Op},
+    data::{Field, field::Value},
 };
+use noodles_sam::record::{Flags, Position, data::field::Tag, Cigar as SamCigar};
+
 use umibk::Dist;
 
 pub mod readname;
 
 #[derive(Debug)]
 pub struct UmiRecord {
-    pub record: SamRecord,
+    pub record: BamRecord,
     pub umi: Vec<u8>,
 }
 
-impl From<UmiRecord> for SamRecord {
-    fn from(r: UmiRecord) -> SamRecord {
+impl From<UmiRecord> for BamRecord {
+    fn from(r: UmiRecord) -> BamRecord {
         r.record
     }
 }
@@ -42,8 +42,8 @@ impl UmiRecord {
         self.record.flags()
     }
 
-    pub fn read_name(&self) -> &str {
-        self.record.read_name().map(|n| n.as_ref()).unwrap_or("")
+    pub fn read_name(&self) -> &[u8] {
+        self.record.read_name().map(|n| n.to_bytes()).unwrap_or(b"")
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {
@@ -65,7 +65,7 @@ impl UmiRecord {
         let start = self.position().map(|i| i.into())?;
 
         if flags.is_reverse_complemented() {
-            let len = self.record.cigar().reference_len() as i32;
+            let len = self.record.cigar().reference_len().unwrap() as i32;
             if !paired || flags.is_read_1() {
                 Some(FragmentCoord::Read1Start(start + len))
             } else {
@@ -89,7 +89,7 @@ impl UmiRecord {
             if flags.is_reverse_complemented() {
                 return Some(FragmentCoord::FragmentEnd(start));
             } else {
-                let len = self.record.cigar().reference_len() as i32;
+                let len = self.record.cigar().reference_len().unwrap() as i32;
                 return Some(FragmentCoord::FragmentEnd(start + len));
             }
         }
@@ -99,7 +99,7 @@ impl UmiRecord {
 
         if flags.is_mate_reverse_complemented() {
             //maybe use template len for proper pairs
-            let len = self.mate_cigar()?.reference_len() as i32;
+            let len = self.mate_cigar()?.reference_len().ok()? as i32;
             if flags.is_proper_pair() {
                 //test bam sanity
                 let start: i32 = self.record.position().map(|i| i.into())?;
@@ -116,25 +116,45 @@ impl UmiRecord {
         !flags.is_unmapped() && !flags.is_supplementary() && !flags.is_secondary()
     }
 
-    //FIXME use as_int
     pub fn ms(&self) -> Option<u32> {
         if self.record.flags().is_mate_unmapped() {
             None
         } else {
             self.record
                 .data()
-                .get(Tag::try_from(*b"ms").unwrap())
-                .and_then(|f| f.value().as_int())
+                .fields()
+                .find_map(|f| {
+                    match f {
+                        Ok(f) if f.tag() == Tag::MateCigar => Some(f.value().as_int32()?),
+                        _ => None
+                    }
+                })
                 .and_then(|v| u32::try_from(v).ok())
         }
     }
 
     pub fn mate_cigar(&self) -> Option<Cigar> {
+        let ms = Tag::try_from(*b"ms").unwrap();
         self.record
             .data()
-            .get(Tag::MateCigar)
-            .and_then(|cs| cs.value().as_str())
-            .and_then(|s| s.parse().ok())
+            .fields()
+            .find_map(|f| {
+                match f {
+                    Ok(f) if f.tag() == ms => Some(f.value().as_str()?.to_owned()),
+                    _ => None
+                }
+            })
+            .and_then(|s| s.parse::<SamCigar>().ok())
+            .map(|cigar| {
+                let mut c: Vec<Op> = Vec::new();
+                for op in cigar.iter() {
+                    let len = op.len();
+                    let kind = op.kind() as u32;
+                    let value = len << 4 | kind;
+                    c.push(Op::try_from(value).unwrap())
+                }
+                Cigar::from(c)
+            })
     }
 
     pub fn score(&self) -> u32 {
@@ -163,22 +183,22 @@ impl UmiRecord {
     pub fn correct_barcode_tag<T: Into<String>>(&mut self, tag: T) {
         let data = self.record.data_mut();
 
-        let old = data.insert(Field::new(Tag::UmiSequence, Value::String(tag.into()))).unwrap();
+        let old = data.insert(Field::new(Tag::UmiSequence, Value::String(tag.into()))).unwrap().unwrap();
         data.insert(
             Field::new(Tag::OriginalUmiBarcodeSequence, Value::String(old.value().as_str().unwrap().to_owned()))
         );
     }
 }
 
-impl TryFrom<SamRecord> for UmiRecord {
+impl TryFrom<BamRecord> for UmiRecord {
     type Error = UmiError;
 
-    fn try_from(mut r: SamRecord) -> Result<UmiRecord, Self::Error> {
+    fn try_from(mut r: BamRecord) -> Result<UmiRecord, Self::Error> {
         // attempt 1 umi from read name
         let maybe_umi = r
-            .read_name()
-            .and_then(|name| name.split(':').next_back())
-            .map(|v| v.as_bytes().to_vec());
+            .read_name().ok()
+            .and_then(|name| name.to_bytes().split(|&c| c == b':').next_back())
+            .map(|v| v.to_vec());
         if let Some(maybe_umi) = maybe_umi {
             if maybe_umi.len() > 3 && maybe_umi.iter().all(isbase) {
                 let umi = maybe_umi.to_vec();
@@ -212,12 +232,17 @@ pub fn isbase(b: &u8) -> bool {
 }
 
 // create extension  trait for record?
-pub fn record_umi_tag(record: &SamRecord) -> Option<Vec<u8>> {
-    record
-        .data()
-        .get(Tag::UmiSequence)
-        .and_then(|f| f.value().as_str())
-        .map(|v| v.as_bytes().to_vec())
+pub fn record_umi_tag(record: &BamRecord) -> Option<Vec<u8>> {
+        record
+            .data()
+            .fields()
+            .find_map(|f| {
+                match f {
+                    Ok(f) if f.tag() == Tag::UmiSequence => Some(f.value().as_str()?.to_owned()),
+                    _ => None
+                }
+            })
+            .map(|s| s.as_bytes().to_vec())
 }
 
 #[derive(Debug, Error)]

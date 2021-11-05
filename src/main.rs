@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
                 parts.markduplicates();
                 for r in parts.iter_records() {
                     writer
-                        .write_sam_record(&reader.reference_sequences, &r.record)
+                        .write_record(&r.record)
                         .await?;
                 }
                 //dump mates using their mate result
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
             RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {},
             RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
                 writer
-                    .write_sam_record(&reader.reference_sequences, &r.into())
+                    .write_record(&r.into())
                     .await?;
             }
         }
