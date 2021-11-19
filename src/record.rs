@@ -10,8 +10,6 @@ use noodles_sam::record::{
 };
 use umibk::Dist;
 
-pub mod readname;
-
 #[derive(Debug)]
 pub struct UmiRecord {
     pub record: SamRecord,
