@@ -11,10 +11,10 @@ anyhow = "1.0.43"
 atoi = "0.4.0"
 umibk = { path = "../umibk/" }
 tokio = { version = "1.11", features = ["fs", "io-std", "macros", "rt"] }
-#noodles-bam = { version = "0.7.0", features = ["async"] }
-#noodles-sam = "0.6.0"
-noodles-bam = {path = "../crates/noodles/noodles-bam", features = ["async"]}
-noodles-sam = {path = "../crates/noodles/noodles-sam"}
+noodles-bam = { version = "0.9.0", features = ["async"] }
+noodles-sam = "0.8.0"
+#noodles-bam = {path = "../crates/noodles/noodles-bam", features = ["async"]}
+#noodles-sam = {path = "../crates/noodles/noodles-sam"}
 clap = "2.33.3"
 thiserror = "1.0.28"
 regex = "1.5.4"
