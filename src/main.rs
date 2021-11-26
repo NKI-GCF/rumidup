@@ -8,6 +8,7 @@ use tokio::io;
 
 pub mod reader;
 pub mod record;
+pub mod optical;
 
 use reader::RecordStatus;
 
@@ -21,6 +22,7 @@ async fn main() -> Result<()> {
 
     let mut pos = None;
     let mut parts = reader::ReadPartitions::default();
+    let mut optical_dups = 0;
     while let Some(mut r) = reader.read_record().await? {
         //unmark current setting
         r.unflag_dup();
@@ -39,10 +41,9 @@ async fn main() -> Result<()> {
                     eprintln!("dedup bundle for pos {:?}", read_pos);
                 }
                 parts.markduplicates();
+                optical_dups += parts.optical_dup_count;
                 for r in parts.iter_records() {
-                    writer
-                        .write_sam_record(&reader.reference_sequences, &r.record)
-                        .await?;
+                    writer.write_record(&r.record).await?;
                 }
                 //dump mates using their mate result
                 parts.clear_partitions();
@@ -51,11 +52,9 @@ async fn main() -> Result<()> {
         }
 
         match parts.add_record(r) {
-            RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {},
+            RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {}
             RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
-                writer
-                    .write_sam_record(&reader.reference_sequences, &r.into())
-                    .await?;
+                writer.write_record(&r.into()).await?;
             }
         }
     }
@@ -63,6 +62,8 @@ async fn main() -> Result<()> {
     if !parts.seen.is_empty() {
         eprintln!("{} mates not found", parts.seen.len());
     }
+
+    eprintln!("opt dups {}", optical_dups);
 
     writer.shutdown().await?;
 
