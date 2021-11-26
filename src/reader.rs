@@ -9,6 +9,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use umibk::BkTree;
 
 use super::record::{FragmentCoord, UmiRecord};
+use crate::optical::*;
 
 pub struct Reader<R>
 where
@@ -41,9 +42,7 @@ where
         let mut record = NoodlesRecord::default();
         match self.bam.read_record(&mut record).await? {
             0 => Ok(None),
-            _n => {
-                Ok(Some(UmiRecord::try_from(record)?))
-            }
+            _n => Ok(Some(UmiRecord::try_from(record)?)),
         }
     }
 
@@ -109,6 +108,7 @@ pub struct ReadPartitions {
     // Mates wait for their mate to be decided.
     in_partitions: AHashSet<Vec<u8>>,
     current_read_mates: Vec<UmiRecord>,
+    pub optical_dup_count: usize,
 }
 
 #[derive(Debug)]
@@ -180,13 +180,27 @@ impl ReadPartitions {
                 if tree[tree_index_most_occ].len() == 1 && tree_partition.len() == 1 {
                     let record_index = tree[tree_index_most_occ][0].index;
                     let name = self.current_reads[record_index].read_name().to_owned();
-                    self.seen.insert(name, MarkResult { corrected_umi: None, is_dup: false });
+                    self.seen.insert(
+                        name,
+                        MarkResult {
+                            corrected_umi: None,
+                            is_dup: false,
+                        },
+                    );
                     continue;
                 }
 
                 let selected_umi = &tree[tree_index_most_occ][0].umi;
                 let mut best = 0;
                 let mut high_score = 0;
+
+                let locs = tree_partition.iter()
+                    .flat_map(|&ti| tree[ti].iter().map(|e| e.index))
+                    .map(|i| self.current_reads[i].location.take().unwrap());
+                let optical_dups = DuplicateClusters::new(locs);
+                self.optical_dup_count += optical_dups.count_optical_dups(2500);
+                eprintln!("cluster opt {}", self.optical_dup_count);
+
 
                 for read_index in tree_partition
                     .into_iter()
@@ -205,8 +219,14 @@ impl ReadPartitions {
                         None
                     };
                     r.flag_dup();
-                    if r.is_paired() {
-                        self.seen.insert(r.read_name().to_owned(), MarkResult { corrected_umi, is_dup: true });
+                    if r.is_paired() { 
+                        self.seen.insert(
+                            r.read_name().to_owned(),
+                            MarkResult {
+                                corrected_umi,
+                                is_dup: true,
+                            },
+                        );
                     }
                 }
 
@@ -221,15 +241,15 @@ impl ReadPartitions {
         }
     }
 
-    
     pub fn clear_partitions(&mut self) {
         self.current_reads.clear();
         self.partitions.clear();
         self.in_partitions.clear();
         self.current_read_mates.clear();
+        self.optical_dup_count = 0;
     }
 
-    pub fn iter_records(&mut self) -> impl Iterator<Item=&UmiRecord>{
+    pub fn iter_records(&mut self) -> impl Iterator<Item = &UmiRecord> {
         for mate in &mut self.current_read_mates {
             let result = self.seen.remove(mate.read_name()).unwrap();
             if result.is_dup {
@@ -239,7 +259,8 @@ impl ReadPartitions {
                 mate.correct_barcode_tag(String::from_utf8_lossy(&umi));
             }
         }
-        self.current_reads.iter().chain(self.current_read_mates.iter())
+        self.current_reads
+            .iter()
+            .chain(self.current_read_mates.iter())
     }
 }
-
