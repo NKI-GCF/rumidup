@@ -99,7 +99,7 @@ impl UmiRecord {
     }
 
     pub fn read_name(&self) -> &[u8] {
-        self.record.read_name().map(|n| n.to_bytes()).unwrap_or(b"")
+        self.record.read_name()
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {
@@ -217,7 +217,7 @@ impl TryFrom<BamRecord> for UmiRecord {
     fn try_from(mut r: BamRecord) -> Result<UmiRecord, Self::Error> {
         //extract data indices for required fields
         let fields = FieldIndex::try_from(r.data())?;
-        let read_name = r.read_name()?.to_bytes();
+        let read_name = r.read_name();
         let location = Some(Location::try_from(read_name)?);
 
         let umi = if let Some(i) = fields.umi {

@@ -4,6 +4,8 @@ use ahash::{AHashMap, AHashSet};
 use anyhow::Result;
 use noodles_bam::record::Record as NoodlesRecord;
 use noodles_bam::{AsyncReader as NoodlesAsyncReader, AsyncWriter as NoodlesAsyncWriter};
+use noodles_bgzf::AsyncReader as BgzfAsyncReader;
+use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
 use noodles_sam::header::{self, Header as BamHeader, ReferenceSequences};
 use tokio::io::{AsyncRead, AsyncWrite};
 use umibk::BkTree;
@@ -15,11 +17,14 @@ pub struct Reader<R>
 where
     R: AsyncRead,
 {
-    bam: NoodlesAsyncReader<R>,
+    bam: NoodlesReader<R>,
     record_buf: NoodlesRecord,
     header: String,
     pub reference_sequences: ReferenceSequences,
 }
+
+type NoodlesReader<R> = NoodlesAsyncReader<BgzfAsyncReader<R>>;
+type NoodlesWriter<W> = NoodlesAsyncWriter<BgzfAsyncWriter<W>>;
 
 impl<R> Reader<R>
 where
@@ -49,7 +54,7 @@ where
     pub async fn out_bam<W: AsyncWrite + std::marker::Unpin>(
         &self,
         w: W,
-    ) -> Result<NoodlesAsyncWriter<W>> {
+    ) -> Result<NoodlesWriter<W>> {
         let mut writer = NoodlesAsyncWriter::new(w);
         let mut header: BamHeader = self.header.parse()?;
         header
