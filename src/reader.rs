@@ -8,9 +8,9 @@ use noodles_bgzf::AsyncReader as BgzfAsyncReader;
 use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
 use noodles_sam::header::{self, Header as BamHeader, ReferenceSequences};
 use tokio::io::{AsyncRead, AsyncWrite};
-use umibk::BkTree;
 
-use super::record::{FragmentCoord, UmiRecord};
+use crate::record::{FragmentCoord, UmiRecord};
+use crate::bktree::{BkTree, Dist};
 use crate::optical::*;
 
 pub struct Reader<R>
@@ -89,7 +89,7 @@ struct UmiIndex {
     umi: Vec<u8>,
 }
 
-impl umibk::Dist for UmiIndex {
+impl Dist for UmiIndex {
     fn dist(&self, b: &UmiIndex) -> usize {
         let la = self.umi.len();
         let lb = b.umi.len();

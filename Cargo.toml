@@ -9,19 +9,17 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.43"
 atoi = "1.0.0"
-umibk = { path = "../../umibk/" }
 tokio = { version = "1.11", features = ["fs", "io-std", "macros", "rt"] }
 noodles-bam = { version = "0.15.0", features = ["async"] }
 noodles-sam = "0.12.0"
 noodles-bgzf = { version = "0.9.0", features = ["async"] }
-#noodles-bam = {path = "../crates/noodles/noodles-bam", features = ["async"]}
-#noodles-sam = {path = "../crates/noodles/noodles-sam"}
 clap = "3.1.0"
 thiserror = "1.0.28"
 regex = "1.5.4"
 itertools = "0.10.1"
 ahash = "0.7.6"
 smallvec = "1.7.0"
+vec_map = "0.8.2"
 
 [profile.release]
 debug = 1

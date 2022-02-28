@@ -9,6 +9,7 @@ use tokio::io;
 pub mod reader;
 pub mod record;
 pub mod optical;
+pub mod bktree;
 
 use reader::RecordStatus;
 

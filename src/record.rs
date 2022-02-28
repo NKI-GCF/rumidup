@@ -8,8 +8,7 @@ use noodles_bam::record::{
 use noodles_sam::record::{data::field::Tag, Cigar as SamCigar, Flags, Position};
 use thiserror::Error;
 
-use umibk::Dist;
-
+use crate::bktree::Dist;
 use crate::optical::Location;
 
 #[derive(Debug)]
