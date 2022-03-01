@@ -6,15 +6,24 @@
 use anyhow::Result;
 use tokio;
 
+mod app;
 pub mod io;
+pub mod metrics;
 pub mod record;
 pub mod optical;
 pub mod bktree;
 
+
+use app::App;
 use io::RecordStatus;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+
+    let mut app = App::new().await?;
+    app.run().await?;
+
+
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
