@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
                 match parts.add_record(r) {
                     RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {}
                     RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
-                        //writer.write_record(&r.into()).await?;
+                        io.write_record(&r.into()).await?;
                     }
                 }
             }

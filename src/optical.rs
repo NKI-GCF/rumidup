@@ -1,5 +1,3 @@
-use smallvec::SmallVec;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Coord {
     x: i32,
@@ -104,6 +102,7 @@ impl OpticalClusters {
                 }
             }
         }
+        self.clustered = true;
     }
 
     pub fn count_optical_dups(&self) -> usize {

@@ -1,6 +1,3 @@
-use std::io::Error as IoError;
-use std::path::Path;
-
 use ahash::{AHashMap, AHashSet};
 use anyhow::Result;
 use noodles_bam::record::Record as NoodlesRecord;
@@ -9,7 +6,6 @@ use noodles_bgzf::AsyncReader as BgzfAsyncReader;
 use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
 use noodles_sam::header::{self, Header as BamHeader, ReferenceSequences};
 use thiserror::Error;
-use tokio::fs::File;
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
 use crate::record::{FragmentCoord, UmiRecord, Position};
@@ -24,7 +20,7 @@ where
     in_bam: NoodlesReader<R>,
     out_bam: NoodlesWriter<W>,
     next_record: Option<NoodlesRecord>,
-    reference_sequences: ReferenceSequences,
+    pub reference_sequences: ReferenceSequences,
 }
 
 type NoodlesReader<R> = NoodlesAsyncReader<BgzfAsyncReader<R>>;
@@ -47,7 +43,7 @@ where
         let header = in_bam.read_header().await?;
         let reference_sequences = in_bam.read_reference_sequences().await?;
 
-        let mut out_bam = out_bam(write, &header, &reference_sequences).await?;
+        let out_bam = out_bam(write, &header, &reference_sequences).await?;
 
         Ok(BamIo {
             in_bam,

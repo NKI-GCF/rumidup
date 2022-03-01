@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::ops::Index;
 
 use vec_map::VecMap;
@@ -118,7 +117,7 @@ impl<T> BkTree<T> where T: Dist + std::fmt::Debug {
     }
 
     /// Return a `Vec<usize>` to children of the given node
-    fn get_children(&self, start: usize) -> Vec<usize> {
+    pub fn get_children(&self, start: usize) -> Vec<usize> {
         let mut children = Vec::new();
         let mut queue: Vec<usize> = self.umis[start].edges.values().copied().collect();
         while let Some(next) = queue.pop() {
@@ -183,7 +182,7 @@ impl<'a, T> Iterator for TreePartitions<'a, T> where T: Dist {
                 //add this node to the partition
                 self.assigned_partition[current] = self.partition;
                 partition.push(current);
-            } 
+            }
             // follow the edges that might lead to other hits
             self.edge_queue.extend(
                 self.work_edges_out[current].iter()

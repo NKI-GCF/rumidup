@@ -107,7 +107,7 @@ impl UmiRecord {
     }
 
     pub fn is_paired(&self) -> bool {
-        self.flags().is_paired()
+        self.flags().is_segmented()
     }
 
     // determine the coord of the start of the read of the sequencing
@@ -117,17 +117,17 @@ impl UmiRecord {
             return None;
         }
 
-        let paired = flags.is_paired();
+        let paired = flags.is_segmented();
         let start = self.position().map(|i| i.into())?;
 
         if flags.is_reverse_complemented() {
             let len = self.record.cigar().reference_len().unwrap() as i32;
-            if !paired || flags.is_read_1() {
+            if !paired || flags.is_first_segment() {
                 Some(FragmentCoord::Read1Start(start + len))
             } else {
                 Some(FragmentCoord::Read2Start(start + len))
             }
-        } else if !paired || flags.is_read_1() {
+        } else if !paired || flags.is_first_segment() {
             Some(FragmentCoord::Read1Start(start))
         } else {
             Some(FragmentCoord::Read2Start(start))
@@ -140,7 +140,7 @@ impl UmiRecord {
         let flags = self.record.flags();
 
         //read is single end (no mate or unmapped)
-        if !flags.is_paired() || flags.is_mate_unmapped() {
+        if !flags.is_segmented() || flags.is_mate_unmapped() {
             let start = self.record.position().map(|i| i.into())?;
             if flags.is_reverse_complemented() {
                 return Some(FragmentCoord::FragmentEnd(start));
@@ -156,7 +156,7 @@ impl UmiRecord {
         if flags.is_mate_reverse_complemented() {
             //maybe use template len for proper pairs
             let len = self.mate_cigar.as_ref()?.reference_len().ok()? as i32;
-            if flags.is_proper_pair() {
+            if flags.is_properly_aligned() {
                 //test bam sanity
                 let start: i32 = self.record.position().map(|i| i.into())?;
                 debug_assert_eq!(mate_start + len - start, self.record.template_length())
@@ -214,7 +214,7 @@ impl UmiRecord {
 impl TryFrom<BamRecord> for UmiRecord {
     type Error = UmiError;
 
-    fn try_from(mut r: BamRecord) -> Result<UmiRecord, Self::Error> {
+    fn try_from(r: BamRecord) -> Result<UmiRecord, Self::Error> {
         //extract data indices for required fields
         let fields = FieldIndex::try_from(r.data())?;
         let read_name = r.read_name();
