@@ -8,6 +8,7 @@ use tokio;
 
 mod app;
 pub mod io;
+pub mod markdups;
 pub mod metrics;
 pub mod record;
 pub mod optical;
@@ -17,7 +18,7 @@ pub mod bktree;
 use app::App;
 use io::RecordStatus;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
 
     let mut app = App::new().await?;
@@ -82,7 +83,7 @@ async fn main() -> Result<()> {
                 eprintln!("Big bundle ({}) at {:?} {:?}", bundle.len(), bundle[0].reference_sequence_id(), bundle[0].position());
             }
             for r in bundle.drain(..) {
-                let r = record::UmiRecord::try_from(r).unwrap();
+                let r = record::UmiRecord::from_bam_record(r, true, true, true).unwrap();
                 match parts.add_record(r) {
                     RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {}
                     RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {

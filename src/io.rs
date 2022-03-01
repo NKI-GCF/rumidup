@@ -220,7 +220,7 @@ impl ReadPartitions {
                     r.flag_dup();
                 }
                 if let Some(umi) = result.corrected_umi {
-                    r.correct_barcode_tag(String::from_utf8_lossy(&umi));
+                    r.correct_barcode_umi(String::from_utf8_lossy(&umi));
                 }
                 return RecordStatus::SeenMate(r);
             } else if self.in_partitions.contains(r.read_name()) {
@@ -299,7 +299,7 @@ impl ReadPartitions {
                         high_score = score;
                     }
                     let corrected_umi = if &r.umi != selected_umi {
-                        r.correct_barcode_tag(String::from_utf8_lossy(selected_umi));
+                        r.correct_barcode_umi(String::from_utf8_lossy(selected_umi));
                         Some(selected_umi.to_vec())
                     } else {
                         None
@@ -342,7 +342,7 @@ impl ReadPartitions {
                 mate.flag_dup();
             }
             if let Some(umi) = result.corrected_umi {
-                mate.correct_barcode_tag(String::from_utf8_lossy(&umi));
+                mate.correct_barcode_umi(String::from_utf8_lossy(&umi));
             }
         }
         self.current_reads

@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::marker::Unpin;
 
+use ahash::AHashMap;
 use clap::Parser;
 use noodles_sam as sam;
 use thiserror::Error;
@@ -11,8 +12,9 @@ use tokio::{
 
 use crate::{
     io::{BamIo, BamIoError},
+    markdups::{MarkResult},
     metrics::{Metrics, Status},
-    record::RecordError,
+    record::{BamRecord, ReadName, RecordError},
 };
 
 
@@ -46,7 +48,7 @@ pub struct Config {
     #[clap(short = 'x', long)]
     pub no_original_tag: bool,
 
-    /// Don't move illumina bclconvert UMI sequence from readname to RX tag
+    /// Don't remove UMI from read name
     #[clap(short = 'k', long)]
     pub keep_readname: bool,
 
@@ -67,6 +69,7 @@ pub struct Config {
 pub struct App {
     config: Config,
     bamio: BamIo<Box<dyn AsyncRead + Unpin>, Box<dyn AsyncWrite + Unpin>>,
+    seen: AHashMap<ReadName, MarkResult>,
     metrics: Metrics,
 }
 
@@ -89,12 +92,27 @@ impl App {
 
         let bamio = BamIo::new(read, write).await?;
 
-        Ok(App { config, bamio, metrics: Metrics::default() })
+        Ok(App { config, bamio, seen: AHashMap::new(), metrics: Metrics::default() })
     }
 
     /// Deduplication is performed bundles of records that all map to the same start location.
     /// For paired-end reads only one read is used to determine the duplcation status.
-    pub async fn run(&self) -> Result<(), UmiDedupError> {
+    pub async fn run(&mut self) -> Result<(), UmiDedupError> {
+
+        let mut bundle = Vec::new();
+        while self.bamio.read_bundle(&mut bundle).await? {
+            for record in &bundle {
+            }
+            //extract records for deduplication
+            // run dedup
+            //
+            // update metrics
+            //
+            // update records
+            //
+            // write bundle to out
+        }
+
         // print/write the metrics (sync)
         if let Some(path) = &self.config.metrics {
             use std::io::Write;
