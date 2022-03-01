@@ -5,7 +5,8 @@ use noodles_bam::record::{
     data::{field::Value, Data, Field},
     Record as BamRecord,
 };
-use noodles_sam::record::{data::field::Tag, Cigar as SamCigar, Flags, Position};
+use noodles_sam::record::{data::field::Tag, Cigar as SamCigar, Flags};
+pub use noodles_sam::record::Position;
 use thiserror::Error;
 
 use crate::bktree::Dist;

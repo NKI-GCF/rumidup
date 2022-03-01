@@ -4,27 +4,27 @@
 //e.g. /net/NGSanalysis/data/m.hoekstra/6434/6434_8_2h_1_ng_ml_IFNg_10_ng_ml_TNFa_CCAGTCGTCA-CGCTAGGCTA_S25.bam
 
 use anyhow::Result;
-use tokio::io;
+use tokio;
 
-pub mod reader;
+pub mod io;
 pub mod record;
 pub mod optical;
 pub mod bktree;
 
-use reader::RecordStatus;
+use io::RecordStatus;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
 
-    let mut reader = reader::Reader::new(stdin).await?;
-    let mut writer = reader.out_bam(stdout).await?;
+    let mut io = io::BamIo::new(stdin, stdout).await?;
 
-    let mut pos = None;
-    let mut parts = reader::ReadPartitions::default();
+    //let mut pos = None;
+    let mut parts = io::ReadPartitions::default();
     let mut optical_dups = 0;
-    while let Some(mut r) = reader.read_record().await? {
+    /*
+    while let Some(mut r) = io.read_record().await? {
         //unmark current setting
         r.unflag_dup();
         //steps
@@ -55,8 +55,38 @@ async fn main() -> Result<()> {
         match parts.add_record(r) {
             RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {}
             RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
-                writer.write_record(&r.into()).await?;
+                reader.write_record(&r.into()).await?;
             }
+        }
+    }
+
+        */
+    let mut bundle = Vec::new();
+    while io.read_bundle(&mut bundle).await? {
+
+        if bundle.len() == 1 {
+            for r in bundle.drain(..) {
+                io.write_record(&r).await?;
+            }
+        } else {
+            if bundle.len() > 50 {
+                eprintln!("Big bundle ({}) at {:?} {:?}", bundle.len(), bundle[0].reference_sequence_id(), bundle[0].position());
+            }
+            for r in bundle.drain(..) {
+                let r = record::UmiRecord::try_from(r).unwrap();
+                match parts.add_record(r) {
+                    RecordStatus::PossibleDup | RecordStatus::Duplicate | RecordStatus::InPartition => {}
+                    RecordStatus::Unusable(r) | RecordStatus::SeenMate(r) => {
+                        //writer.write_record(&r.into()).await?;
+                    }
+                }
+            }
+            parts.markduplicates();
+            optical_dups += parts.optical_dup_count;
+            for r in parts.iter_records() {
+                io.write_record(&r.record).await?;
+            }
+            parts.clear_partitions();
         }
     }
 
@@ -66,7 +96,7 @@ async fn main() -> Result<()> {
 
     eprintln!("opt dups {}", optical_dups);
 
-    writer.shutdown().await?;
+    io.shutdown().await?;
 
     Ok(())
 }
