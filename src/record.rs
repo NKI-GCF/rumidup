@@ -29,7 +29,7 @@ struct FieldIndex {
 }
 
 impl TryFrom<&[u8]> for Location {
-    type Error = UmiError;
+    type Error = RecordError;
     fn try_from(r: &[u8]) -> Result<Self, Self::Error> {
         // A01260:10:HWNYWDRXX:1:1273:8205:25598
         let mut e = r.split(|&b| b == b':')
@@ -37,28 +37,28 @@ impl TryFrom<&[u8]> for Location {
             .take(4);
 
         let mut lanetile: Vec<u8> = e.next()
-            .ok_or(UmiError::NoCoords)?
+            .ok_or(RecordError::NoCoords)?
             .to_vec();
         lanetile.extend(e.next()
-            .ok_or(UmiError::NoCoords)?
+            .ok_or(RecordError::NoCoords)?
             .iter()
             .copied()
         );
 
         let x = String::from_utf8_lossy(e.next()
-            .ok_or(UmiError::NoCoords)?)
-            .parse().map_err(|_| UmiError::NoCoords)?;
+            .ok_or(RecordError::NoCoords)?)
+            .parse().map_err(|_| RecordError::NoCoords)?;
 
         let y = String::from_utf8_lossy(e.next()
-            .ok_or(UmiError::NoCoords)?)
-            .parse().map_err(|_| UmiError::NoCoords)?;
+            .ok_or(RecordError::NoCoords)?)
+            .parse().map_err(|_| RecordError::NoCoords)?;
 
         Ok(Location::new(lanetile, x, y))
     }
 }
 
 impl TryFrom<&Data> for FieldIndex {
-    type Error = UmiError;
+    type Error = RecordError;
     fn try_from(data: &Data) -> Result<Self, Self::Error> {
         let mut fields = FieldIndex::default();
         for (index, key) in data.keys().enumerate() {
@@ -212,7 +212,7 @@ impl UmiRecord {
 }
 
 impl TryFrom<BamRecord> for UmiRecord {
-    type Error = UmiError;
+    type Error = RecordError;
 
     fn try_from(r: BamRecord) -> Result<UmiRecord, Self::Error> {
         //extract data indices for required fields
@@ -238,7 +238,7 @@ impl TryFrom<BamRecord> for UmiRecord {
             */
             umi
         } else {
-            return Err(UmiError::NoUmi);
+            return Err(RecordError::NoUmi);
         };
 
         let mate_cigar = fields
@@ -249,10 +249,10 @@ impl TryFrom<BamRecord> for UmiRecord {
                 value
                     .value()
                     .as_str()
-                    .ok_or(UmiError::InvalidMateCigar)
+                    .ok_or(RecordError::InvalidMateCigar)
                     .and_then(|cs| {
                         cs.parse::<SamCigar>()
-                            .map_err(|_| UmiError::InvalidMateCigar)
+                            .map_err(|_| RecordError::InvalidMateCigar)
                     })
             })
             .transpose()?
@@ -272,7 +272,7 @@ impl TryFrom<BamRecord> for UmiRecord {
             .and_then(|i| r.data().get_index(i))
             .transpose()?
             .and_then(|value| value.value().as_int())
-            .map(|score| u32::try_from(score).map_err(|_| UmiError::NoMateScore))
+            .map(|score| u32::try_from(score).map_err(|_| RecordError::NoMateScore))
             .transpose()?;
 
 
@@ -311,7 +311,7 @@ impl Dist for UmiRecord {
 }
 
 #[derive(Debug, Error)]
-pub enum UmiError {
+pub enum RecordError {
     #[error("Error reading BAM")]
     IoError(#[from] std::io::Error),
     #[error("No MS tag in record data. Run samtools fixmate")]
