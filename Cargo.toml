@@ -1,10 +1,14 @@
 [package]
-name = "umidedup"
+name = "rumidup"
 version = "0.1.0"
 authors = ["Arno Velds <a.velds@nki.nl>", "Roel Kluin <r.kluin@nki.nl>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Rumidup is a UMI aware mark duplicates tools for NGS sequencing data."
+readme = "README.md"
+license = "MIT"
+keywords = ["command-line-utilities" ,"science"]
+exclude = ["publication"]
+publish = false
 
 [dependencies]
 anyhow = "1.0.43"
