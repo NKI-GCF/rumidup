@@ -1,18 +1,15 @@
 use std::convert::TryFrom;
 
-use noodles_bam::record::{
-    cigar::Cigar,
-    data::{field::Value, Data, Field},
-};
-use noodles_sam::record::{data::field::Tag, Cigar as SamCigar, Flags};
-pub use noodles_sam::record::Position;
+use noodles_bam::record::data::{field::Value, Data, Field};
+pub use noodles_bam::record::Record as BamRecord;
+use noodles_sam::record::{data::field::Tag, Cigar as SamCigar};
+pub use noodles_sam::record::{Flags, Position};
 use thiserror::Error;
 
 use crate::bktree::Dist;
 use crate::optical::Location;
 
 pub type ReadName = Vec<u8>;
-pub use noodles_bam::record::Record as BamRecord;
 
 #[derive(Debug)]
 pub struct UmiRecord {
@@ -57,32 +54,24 @@ impl TryFrom<&[u8]> for Location {
     type Error = RecordError;
     fn try_from(name: &[u8]) -> Result<Location, RecordError> {
         // A01260:10:HWNYWDRXX:1:1273:8205:25598
-        let mut e = name.split(|&b| b == b':')
-            .skip(3)
-            .take(4);
+        let mut e = name.split(|&b| b == b':').skip(3).take(4);
 
-        let mut lanetile: Vec<u8> = e.next()
-            .ok_or(RecordError::NoCoords)?
-            .to_vec();
-        lanetile.extend(e.next()
-            .ok_or(RecordError::NoCoords)?
-            .iter()
-            .copied()
-        );
+        let mut lanetile: Vec<u8> = e.next().ok_or(RecordError::NoCoords)?.to_vec();
+        lanetile.extend(e.next().ok_or(RecordError::NoCoords)?.iter().copied());
 
-        let x = String::from_utf8_lossy(e.next()
-            .ok_or(RecordError::NoCoords)?)
-            .parse().map_err(|_| RecordError::NoCoords)?;
+        let x = String::from_utf8_lossy(e.next().ok_or(RecordError::NoCoords)?)
+            .parse()
+            .map_err(|_| RecordError::NoCoords)?;
 
-        let y = String::from_utf8_lossy(e.next()
-            .ok_or(RecordError::NoCoords)?)
-            .parse().map_err(|_| RecordError::NoCoords)?;
+        let y = String::from_utf8_lossy(e.next().ok_or(RecordError::NoCoords)?)
+            .parse()
+            .map_err(|_| RecordError::NoCoords)?;
 
         Ok(Location::new(lanetile, x, y))
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum FragmentCoord {
     Read1Start(i32),
     Read2Start(i32),
@@ -128,21 +117,29 @@ impl FieldIndex {
                 .unwrap()
                 .as_bytes()
                 .to_vec())
-        }  else {
+        } else {
             Err(RecordError::NoUmi)
         }
     }
 
     fn set_umi(&self, umi: &[u8], data: &mut Data) -> Result<(), RecordError> {
         //FIXME check for overwriting tags?
-        data.insert(Field::new(Tag::UmiSequence, Value::String(String::from_utf8_lossy(umi).to_string()))).transpose()?;
+        data.insert(Field::new(
+            Tag::UmiSequence,
+            Value::String(String::from_utf8_lossy(umi).to_string()),
+        ))
+        .transpose()?;
         Ok(())
     }
 }
 
 impl UmiRecord {
-    pub fn from_bam_record(mut r: BamRecord, edit_readname: bool, extract_tags: bool, extract_location: bool) -> Result<UmiRecord, RecordError> {
-
+    pub fn from_bam_record(
+        mut r: BamRecord,
+        edit_readname: bool,
+        extract_tags: bool,
+        extract_location: bool,
+    ) -> Result<UmiRecord, RecordError> {
         let data_fields = FieldIndex::try_from(r.data())?;
         // Assume the tag is in the readname. when found overwrite any tag in RX
         let umi = if let Some(umi) = umi_from_readname(r.read_name_mut(), edit_readname) {
@@ -152,20 +149,34 @@ impl UmiRecord {
             data_fields.umi(r.data())?
         };
 
+        if umi.is_empty() {
+            return Err(RecordError::NoUmi);
+        }
 
         let mate_score = if extract_tags {
-            data_fields.mate_score(r.data())?
+            Some(
+                data_fields
+                    .mate_score(r.data())?
+                    .ok_or(RecordError::NoMateScore)?,
+            )
         } else {
             None
         };
 
         let mate_cigar = if extract_tags {
-            data_fields.mate_cigar(r.data())?
+            Some(
+                data_fields
+                    .mate_cigar(r.data())?
+                    .ok_or(RecordError::NoMateCigar)?,
+            )
         } else {
             None
         };
 
         let location = if extract_location {
+            if Location::try_from(r.read_name()).is_err() {
+                eprintln!("{:?}", r);
+            }
             Some(Location::try_from(r.read_name())?)
         } else {
             None
@@ -281,8 +292,6 @@ impl UmiRecord {
         &self.umi
     }
 
-
-
     pub fn flag_dup(&mut self) {
         self.record.flags_mut().set(Flags::DUPLICATE, true);
     }
@@ -291,17 +300,19 @@ impl UmiRecord {
         self.record.flags_mut().set(Flags::DUPLICATE, false);
     }
 
-    pub fn correct_barcode_umi<T: Into<String>>(&mut self, umi: T) {
+    pub fn correct_barcode_umi<T: Into<String>>(&mut self, umi: T, original_tag: bool) {
         let data = self.record.data_mut();
 
         let old = data
             .insert(Field::new(Tag::UmiSequence, Value::String(umi.into())))
             .unwrap()
             .unwrap();
-        data.insert(Field::new(
-            Tag::OriginalUmiBarcodeSequence,
-            Value::String(old.value().as_str().unwrap().to_owned()),
-        ));
+        if original_tag {
+            data.insert(Field::new(
+                Tag::OriginalUmiBarcodeSequence,
+                Value::String(old.value().as_str().unwrap().to_owned()),
+            ));
+        }
     }
 }
 
@@ -315,7 +326,7 @@ fn umi_from_readname(r: &mut Vec<u8>, edit: bool) -> Option<Vec<u8>> {
         if lastcolon >= 3 && r[pos..].iter().all(isbase) {
             let umi = r[pos..].to_vec();
             if edit {
-                r.truncate(lastcolon-1);
+                r.truncate(pos - 1);
             }
             return Some(umi);
         }
@@ -338,7 +349,7 @@ impl Dist for UmiRecord {
 pub enum RecordError {
     #[error("Error reading BAM")]
     IoError(#[from] std::io::Error),
-    #[error("No MS tag in record data. Run samtools fixmate")]
+    #[error("No MC (mate cigar) tag in record data. Run samtools fixmate")]
     NoMateCigar,
     #[error("The MC tag cannot be parsed")]
     InvalidMateCigar,

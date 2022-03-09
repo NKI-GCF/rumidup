@@ -1,24 +1,26 @@
 use std::ops::Index;
 
+use smallvec::{smallvec, SmallVec};
 use vec_map::VecMap;
-use smallvec::{SmallVec, smallvec};
 
 pub trait Dist<Rhs = Self> {
     fn dist(&self, other: &Rhs) -> usize;
 }
 
-impl Dist for &str  {
+impl Dist for &str {
     fn dist(&self, b: &Self) -> usize {
         let la = self.len();
         let lb = b.len();
         if la == lb {
-            self.chars().zip(b.chars()).filter(|(a, b)| a == &'N' || b == &'N' || a != b).count()
+            self.chars()
+                .zip(b.chars())
+                .filter(|(a, b)| a == &'N' || b == &'N' || a != b)
+                .count()
         } else {
             std::cmp::max(la, lb)
         }
     }
 }
-
 
 #[derive(Debug)]
 pub struct UmiNode<T> {
@@ -29,7 +31,11 @@ pub struct UmiNode<T> {
 
 impl<T> UmiNode<T> {
     pub fn new(umi: T) -> UmiNode<T> {
-        UmiNode { values: smallvec![umi], count: 1, edges: VecMap::new() }
+        UmiNode {
+            values: smallvec![umi],
+            count: 1,
+            edges: VecMap::new(),
+        }
     }
 
     pub fn count(&self) -> usize {
@@ -41,12 +47,15 @@ impl<T> UmiNode<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BkTree<T> {
     pub umis: Vec<UmiNode<T>>,
 }
 
-impl<T> BkTree<T> where T: Dist + std::fmt::Debug {
+impl<T> BkTree<T>
+where
+    T: Dist + std::fmt::Debug,
+{
     pub fn new() -> BkTree<T> {
         BkTree { umis: Vec::new() }
     }
@@ -99,10 +108,10 @@ impl<T> BkTree<T> where T: Dist + std::fmt::Debug {
         node_order.sort_by_key(|&e| self.umis[e].count);
 
         let work_edges_out: Vec<_> = self.umis.iter().map(|u| u.edges.clone()).collect();
-        let mut work_parents = vec![None; work_edges_out.len()];
-        work_edges_out.iter().enumerate().for_each(|(i, edges)| {
-            edges.iter().for_each(|(dist, &to)| work_parents[to] = Some((i, dist)));
-        });
+        //let mut work_parents = vec![None; work_edges_out.len()];
+        //work_edges_out.iter().enumerate().for_each(|(i, edges)| {
+        //    edges.iter().for_each(|(dist, &to)| work_parents[to] = Some((i, dist)));
+        //});
 
         TreePartitions {
             bktree: self,
@@ -112,7 +121,7 @@ impl<T> BkTree<T> where T: Dist + std::fmt::Debug {
             assigned_partition: vec![0; self.umis.len()],
             edge_queue: Vec::new(),
             work_edges_out,
-            work_parents
+            //work_parents
         }
     }
 
@@ -128,8 +137,10 @@ impl<T> BkTree<T> where T: Dist + std::fmt::Debug {
     }
 
     /// drain the tree returning the inserted values
-    pub fn drain(self) -> impl Iterator<Item=T> {
-        self.umis.into_iter().flat_map(|node| node.values.into_iter())
+    pub fn drain(self) -> impl Iterator<Item = T> {
+        self.umis
+            .into_iter()
+            .flat_map(|node| node.values.into_iter())
     }
 }
 
@@ -140,7 +151,6 @@ impl<T> Index<usize> for BkTree<T> {
     }
 }
 
-
 /// Iterator over the partitions in the `BkTree`, created with the method `BkTree::partitions`
 pub struct TreePartitions<'a, T> {
     bktree: &'a BkTree<T>,
@@ -150,10 +160,13 @@ pub struct TreePartitions<'a, T> {
     assigned_partition: Vec<usize>,
     edge_queue: Vec<usize>,
     work_edges_out: Vec<VecMap<usize>>,
-    work_parents: Vec<Option<(usize, usize)>>,
+    //work_parents: Vec<Option<(usize, usize)>>,
 }
 
-impl<'a, T> Iterator for TreePartitions<'a, T> where T: Dist {
+impl<'a, T> Iterator for TreePartitions<'a, T>
+where
+    T: Dist,
+{
     type Item = Vec<usize>;
     fn next(&mut self) -> Option<Self::Item> {
         let next_node = self.node_order.pop()?;
@@ -172,7 +185,6 @@ impl<'a, T> Iterator for TreePartitions<'a, T> where T: Dist {
         self.edge_queue.clear();
         self.edge_queue.push(0);
 
-
         while let Some(current) = self.edge_queue.pop() {
             let current_node = &self.bktree.umis[current];
             let d = node.values[0].dist(&current_node.values[0]);
@@ -185,10 +197,11 @@ impl<'a, T> Iterator for TreePartitions<'a, T> where T: Dist {
             }
             // follow the edges that might lead to other hits
             self.edge_queue.extend(
-                self.work_edges_out[current].iter()
-                .filter(|&(dist, _)| abs_diff(dist, d) <= max_dist)
-                .map(|(_, target)| target)
-                );
+                self.work_edges_out[current]
+                    .iter()
+                    .filter(|&(dist, _)| abs_diff(dist, d) <= max_dist)
+                    .map(|(_, target)| target),
+            );
             //eprintln!("queu is now {:?}", edge_queue);
         }
 
@@ -203,6 +216,7 @@ impl<'a, T> Iterator for TreePartitions<'a, T> where T: Dist {
 impl<'a, T> TreePartitions<'a, T> {
     // FIXME tree pruning was a thing during development, code copied here but not fixed for
     // iterator, when performance is poor on large trees this may help
+    #[allow(dead_code)]
     fn prune_tree(&mut self) {
         /*
         loop {
@@ -234,7 +248,7 @@ impl<'a, T> TreePartitions<'a, T> {
 }
 
 #[inline]
-fn abs_diff<T: Ord + std::ops::Sub<Output=T>>(a: T, b: T) -> T {
+fn abs_diff<T: Ord + std::ops::Sub<Output = T>>(a: T, b: T) -> T {
     if a < b {
         b - a
     } else {
@@ -246,7 +260,10 @@ pub fn dist(a: &[u8], b: &[u8]) -> usize {
     let la = a.len();
     let lb = b.len();
     if la == lb {
-        a.iter().zip(b.iter()).filter(|(&a, &b)| a == b'N' || b == b'N' || a != b).count()
+        a.iter()
+            .zip(b.iter())
+            .filter(|(&a, &b)| a == b'N' || b == b'N' || a != b)
+            .count()
     } else {
         std::cmp::max(la, lb)
     }
@@ -278,7 +295,7 @@ mod tests {
 
         let mut from_root = tree.get_children(0);
         from_root.sort();
-        assert_eq!(from_root, vec![1,2,3]);
+        assert_eq!(from_root, vec![1, 2, 3]);
         assert_eq!(tree.get_children(2), vec![]);
         assert_eq!(tree.get_children(1), vec![3]);
     }
@@ -288,17 +305,17 @@ mod tests {
         let mut tree = BkTree::new();
         tree.insert("CGCT"); // 0
         tree.insert("CCCT"); //1
-        tree.insert("CCAT");//2
-        tree.insert("CGAT");//3
-        tree.insert("CGAT");//-
+        tree.insert("CCAT"); //2
+        tree.insert("CGAT"); //3
+        tree.insert("CGAT"); //-
         println!("{:#?}", tree);
         let mut d1 = tree.partitions(1);
-        assert_eq!(d1.next(), Some(vec![3,0,2]));
+        assert_eq!(d1.next(), Some(vec![3, 0, 2]));
         assert_eq!(d1.next(), Some(vec![1]));
         assert!(d1.next().is_none());
 
         let mut d2 = tree.partitions(2);
-        assert_eq!(d2.next(), Some(vec![3,0,2,1]));
+        assert_eq!(d2.next(), Some(vec![3, 0, 2, 1]));
         assert!(d2.next().is_none());
     }
 }
