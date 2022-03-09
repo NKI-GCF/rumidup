@@ -1,7 +1,4 @@
 //! Filters records in a BAM that have a unique alignment and umi.
-//!
-
-//e.g. /net/NGSanalysis/data/m.hoekstra/6434/6434_8_2h_1_ng_ml_IFNg_10_ng_ml_TNFa_CCAGTCGTCA-CGCTAGGCTA_S25.bam
 
 use anyhow::Result;
 
