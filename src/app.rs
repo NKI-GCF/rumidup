@@ -151,13 +151,14 @@ impl App {
             let flags = record.flags();
             self.metrics.count_flags(flags);
 
-            //duplication status of reads that have both (first and last segment) mapped is only determined once
+            //duplication status of reads that have both (first and last segment) mapped is only
+            //determined once and applied to both
             let is_mapped_pair = !flags.is_secondary()
                 && !flags.is_supplementary()
                 && flags.is_segmented()
                 && !flags.is_unmapped() && !flags.is_mate_unmapped();
 
-            //if mate read has been processed before fetch results
+            //check if mate read has been processed before
             let seen = is_mapped_pair && self.seen.contains_key(record.read_name());
 
             let willmarkdup =
@@ -172,6 +173,7 @@ impl App {
                 extract_tags,
                 extract_location,
             )?;
+
             if seen {
                 result = MarkResult::Skipped;
             } else if willmarkdup {
@@ -344,7 +346,7 @@ impl App {
         Ok(())
     }
 
-    /// empties the umirecords
+    /// empties the umirecords and the results Vec
     async fn write_records(&mut self) -> io::Result<()> {
         for record in self.umirecords.drain(..) {
             self.bamio.write_record(&record.into()).await?;
