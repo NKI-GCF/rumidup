@@ -14,7 +14,7 @@ It is our intention to publish to bioconda soon.
 
 
 ### Input
-Coordinate sorted BAM (file or stdin). When paired end reads are used the BAm
+Coordinate sorted BAM (file or stdin). When paired end reads are used the BAM
 file should hve the `MC` and `ms` tags added. This can be done by piping the
 unsorted bam through `samtools fixmate`.
 
@@ -77,7 +77,7 @@ bwa mem ref r1.fastq.gz r2.fastq.gz | \
 
 
 ## Method
-rumidup reads all reads that map to the same start location. It then determines
+rumidup reads all reads that map to the same genomic location. It then determines
 the reads fragment coordinates with the help of the mapped position and the
 CIGAR line information:
  - Unpaired reads take the 5' sequencing start and the mapped fragment end based
