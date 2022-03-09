@@ -137,7 +137,7 @@ async fn out_bam<W: AsyncWrite + std::marker::Unpin>(
         .map_err(|e: header::ParseError| BamIoError::ParseError(e.to_string()))?;
     header
         .programs_mut()
-        .insert("umidedup".to_string(), header::Program::new("umidedup"));
+        .insert("rumidup".to_string(), header::Program::new("rumidup"));
     writer.write_header(&header).await?;
     writer
         .write_reference_sequences(reference_sequences)

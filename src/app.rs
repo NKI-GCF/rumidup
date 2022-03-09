@@ -20,11 +20,11 @@ use crate::{
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
-    /// The input bam file. umidedup reads from stdin when omitted
+    /// The input bam file. rumidup reads from stdin when omitted
     #[clap(short, long)]
     pub bam: Option<PathBuf>,
 
-    /// The output bam file. umidedup writes to stdout when omitted
+    /// The output bam file. rumidup writes to stdout when omitted
     #[clap(short, long)]
     pub output: Option<PathBuf>,
 
@@ -96,7 +96,7 @@ impl Dist for UmiIndex {
 }
 
 impl App {
-    pub async fn new() -> Result<App, UmiDedupError> {
+    pub async fn new() -> Result<App, RumidupError> {
         let config = Config::parse();
 
         let read: Box<dyn AsyncRead + Unpin> = if let Some(p) = config.bam.as_ref() {
@@ -126,7 +126,7 @@ impl App {
 
     /// Deduplication is performed bundles of records that all map to the same start location.
     /// For paired-end reads only one read is used to determine the duplcation status.
-    pub async fn run(&mut self) -> Result<(), UmiDedupError> {
+    pub async fn run(&mut self) -> Result<(), RumidupError> {
         while self.read_bundle().await? {
             self.process_in_records()?;
             self.mark_unknown()?;
@@ -144,7 +144,7 @@ impl App {
         self.bamio.read_bundle(&mut self.records).await
     }
 
-    fn process_in_records(&mut self) -> Result<(), UmiDedupError> {
+    fn process_in_records(&mut self) -> Result<(), RumidupError> {
         for record in self.records.drain(..) {
             let mut result = MarkResult::Unusable;
 
@@ -193,7 +193,7 @@ impl App {
         Ok(())
     }
 
-    fn mark_unknown(&mut self) -> Result<(), UmiDedupError> {
+    fn mark_unknown(&mut self) -> Result<(), RumidupError> {
         //extract status unknown records and create umi trees
         let umi_clusters: UmiClusters<_> = self
             .umirecords
@@ -290,7 +290,7 @@ impl App {
         self.record_results[i] = result;
     }
 
-    fn update_records(&mut self) -> Result<(), UmiDedupError> {
+    fn update_records(&mut self) -> Result<(), RumidupError> {
         let mut old_result;
         for (i, mut result) in self.record_results.iter().enumerate() {
             if matches!(result, MarkResult::Skipped) {
@@ -368,7 +368,7 @@ impl App {
 
 #[derive(Debug, Error)]
 #[allow(clippy::enum_variant_names)]
-pub enum UmiDedupError {
+pub enum RumidupError {
     #[error("IoError")]
     IoError(#[from] std::io::Error),
     #[error("Error r BAM record")]
