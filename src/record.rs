@@ -123,12 +123,18 @@ impl FieldIndex {
     }
 
     fn set_umi(&self, umi: &[u8], data: &mut Data) -> Result<(), RecordError> {
-        //FIXME check for overwriting tags?
-        data.insert(Field::new(
-            Tag::UmiSequence,
-            Value::String(String::from_utf8_lossy(umi).to_string()),
-        ))
-        .transpose()?;
+        if data
+            .insert(Field::new(
+                Tag::UmiSequence,
+                Value::String(String::from_utf8_lossy(umi).to_string()),
+            ))
+            .transpose()?
+            .is_some()
+        {
+            return Err(RecordError::ParseError(
+                "Record has an UMI both in tags and in the read name".to_string(),
+            ));
+        }
         Ok(())
     }
 }
@@ -274,18 +280,12 @@ impl UmiRecord {
     }
 
     pub fn score(&self) -> u32 {
-        //FIXME cleanup?
-        let rs = self
-            .record
+        self.record
             .quality_scores()
             .scores()
-            .map(|s| s.map(u8::from).unwrap_or(0) as u32)
-            .sum();
-        if let Some(ms) = self.mate_score {
-            rs + ms
-        } else {
-            rs
-        }
+            .filter_map(|s| s.map(|q| u32::from(u8::from(q))).ok())
+            .sum::<u32>()
+            + self.mate_score.unwrap_or(0)
     }
 
     pub fn umi(&self) -> &[u8] {
@@ -361,4 +361,6 @@ pub enum RecordError {
     NoReadName(#[from] std::ffi::FromBytesWithNulError),
     #[error("Error parsing coords from readname")]
     NoCoords,
+    #[error("ParseError reading BAM: {0}")]
+    ParseError(String),
 }
