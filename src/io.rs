@@ -7,8 +7,6 @@ use noodles_sam::header::{self, Header as BamHeader, ReferenceSequences};
 use thiserror::Error;
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
-use crate::record::Position;
-
 pub struct BamIo<R, W>
 where
     R: AsyncRead,
@@ -18,6 +16,7 @@ where
     out_bam: NoodlesWriter<W>,
     next_record: Option<NoodlesRecord>,
     pub reference_sequences: ReferenceSequences,
+    ref_shift: u32,
 }
 
 type NoodlesReader<R> = NoodlesAsyncReader<BgzfAsyncReader<R>>;
@@ -40,12 +39,17 @@ where
         let reference_sequences = in_bam.read_reference_sequences().await?;
 
         let out_bam = out_bam(write, &header, &reference_sequences).await?;
+        let ref_shift = reference_sequences
+            .len()
+            .next_power_of_two()
+            .leading_zeros();
 
         Ok(BamIo {
             in_bam,
             out_bam,
             next_record: None,
             reference_sequences,
+            ref_shift,
         })
     }
 
@@ -60,7 +64,10 @@ where
 
     /// Return the next read from the bam read stream or the peeked value if
     /// the position matches the provided position
-    pub async fn read_at_pos(&mut self, pos: Position) -> io::Result<Option<NoodlesRecord>> {
+    pub async fn read_at_pos(
+        &mut self,
+        chr_pos: Option<usize>,
+    ) -> io::Result<Option<NoodlesRecord>> {
         if self.next_record.is_none() {
             if let Some(record) = self.read_from_bam().await? {
                 self.next_record = Some(record);
@@ -69,8 +76,8 @@ where
             }
         }
 
-        let next_pos = self.next_record.as_ref().unwrap().position();
-        if next_pos == Some(pos) {
+        let next_chr_pos = self.get_chr_pos(self.next_record.as_ref().unwrap());
+        if next_chr_pos == chr_pos {
             Ok(Some(self.next_record.take().unwrap()))
         } else {
             Ok(None)
@@ -86,15 +93,22 @@ where
             _n => Ok(Some(record)),
         }
     }
+    fn get_chr_pos(&self, record: &NoodlesRecord) -> Option<usize> {
+        record.position().and_then(|p| {
+            usize::try_from(i32::from(p))
+                .expect("Negative position?")
+                .checked_shl(self.ref_shift)
+                .and_then(|p| record.reference_sequence_id().map(|c| usize::from(c) | p))
+        })
+    }
 
     pub async fn read_bundle(&mut self, bundle: &mut Vec<NoodlesRecord>) -> io::Result<bool> {
         bundle.clear();
         if let Some(first) = self.read().await? {
-            //FIXME use combination chr pos
-            let pos = first.position();
+            let chr_pos = self.get_chr_pos(&first);
             bundle.push(first);
-            if let Some(pos) = pos {
-                while let Some(next) = self.read_at_pos(pos).await? {
+            if chr_pos.is_some() {
+                while let Some(next) = self.read_at_pos(chr_pos).await? {
                     bundle.push(next);
                 }
             }
@@ -105,11 +119,10 @@ where
     pub async fn read_bundle_owned(&mut self) -> io::Result<Vec<NoodlesRecord>> {
         let mut bundle = Vec::new();
         if let Some(first) = self.read().await? {
-            //FIXME use combination chr pos
-            let pos = first.position();
+            let chr_pos = self.get_chr_pos(&first);
             bundle.push(first);
-            if let Some(pos) = pos {
-                while let Some(next) = self.read_at_pos(pos).await? {
+            if chr_pos.is_some() {
+                while let Some(next) = self.read_at_pos(chr_pos).await? {
                     bundle.push(next);
                 }
             }
