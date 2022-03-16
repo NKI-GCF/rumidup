@@ -336,8 +336,12 @@ impl App {
                 MarkResult::Skipped => {
                     panic!("Nested skipped/unusable record {:?}", self.umirecords[i])
                 }
-                MarkResult::Unknown(_) | MarkResult::Failed => eprintln!(
-                    "Record with marked status {}",
+                MarkResult::Failed => eprintln!(
+                    "Record failed to parse usable coordinates {}, rumidup skipped this record, but it might indicate problems with the BAM file",
+                    std::string::String::from_utf8_lossy(self.umirecords[i].read_name())
+                ),
+                MarkResult::Unknown(_) => eprintln!(
+                    "Record still marked unknown after dedup: {}. This is a BUG!",
                     std::string::String::from_utf8_lossy(self.umirecords[i].read_name())
                 ),
             }
