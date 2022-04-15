@@ -54,7 +54,7 @@ pub struct BkTree<T> {
 
 impl<T> BkTree<T>
 where
-    T: Dist + std::fmt::Debug,
+    T: Dist,
 {
     pub fn new() -> BkTree<T> {
         BkTree { umis: Vec::new() }
@@ -188,7 +188,6 @@ where
         while let Some(current) = self.edge_queue.pop() {
             let current_node = &self.bktree.umis[current];
             let d = node.values[0].dist(&current_node.values[0]);
-            //eprintln!("traverse from {}, dist ={}", current, d);
 
             if d <= self.max_dist && self.assigned_partition[current] == 0 {
                 //add this node to the partition
@@ -202,7 +201,6 @@ where
                     .filter(|&(dist, _)| abs_diff(dist, d) <= max_dist)
                     .map(|(_, target)| target),
             );
-            //eprintln!("queu is now {:?}", edge_queue);
         }
 
         if partition.is_empty() {

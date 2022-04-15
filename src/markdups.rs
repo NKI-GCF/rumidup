@@ -57,11 +57,11 @@ impl CorrectedUmi {
 
 pub type CoordPair = (FragmentCoord, FragmentCoord);
 #[derive(Default)]
-pub struct UmiClusters<T: Dist + Debug>(AHashMap<CoordPair, BkTree<T>>);
+pub struct UmiClusters<T: Dist>(AHashMap<CoordPair, BkTree<T>>);
 
 impl<T> FromIterator<(CoordPair, T)> for UmiClusters<T>
 where
-    T: Debug + Dist,
+    T: Dist,
 {
     fn from_iter<I: IntoIterator<Item = (CoordPair, T)>>(iter: I) -> Self {
         let mut trees = AHashMap::new();
@@ -77,7 +77,7 @@ where
 
 impl<T> UmiClusters<T>
 where
-    T: Dist + Debug,
+    T: Dist,
 {
     pub fn insert(&mut self, coord_pair: CoordPair, value: T) {
         let tree = self.0.entry(coord_pair).or_insert_with(BkTree::new);
