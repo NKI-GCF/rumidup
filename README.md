@@ -1,5 +1,5 @@
 # rumidup
- UMI aware mark (optical) duplicates in NGS BAM
+UMI aware mark (optical) duplicates in NGS BAM
 
 ## Installation
 ### From source
@@ -18,11 +18,14 @@ Coordinate sorted BAM (file or stdin). When paired end reads are used the BAM
 file should hve the `MC` and `ms` tags added. This can be done by piping the
 unsorted bam through `samtools fixmate`.
 
-The UMI should either be present in the RX tag. But because the standard Illumina BCLconvert program attaches the UMI sequence to the readname it is also possible to 
+The UMI should be present in the BAM `RX` tag. Because the standard Illumina
+BCLconvert program attaches the UMI sequence to the read name it is also
+possible to extract the UMI from the read name and (optionally) add a `RX` AUX
+tags.
 
 ### Output
-All records are written in the same order to a file or stdout with the flag
-adjusted to reflect duplication status. Additional aux tags can be added
+All records are written in the same order to a file or stdout with the BAM flag
+adjusted to reflect duplication status. Additional AUX tags can be added
 depending on configuration.
 
 ### Options
@@ -77,34 +80,37 @@ bwa mem ref r1.fastq.gz r2.fastq.gz | \
 
 
 ## Method
-rumidup reads all reads that map to the same genomic location. It then determines
+rumidup collects all reads that map to the same genomic location. It then determines
 the reads fragment coordinates with the help of the mapped position and the
 CIGAR line information:
  - Unpaired reads take the 5' sequencing start and the mapped fragment end based
- - Paired-end reads take the 5' sequecning start of both reads
+ - Paired-end reads take the 5' sequencing start of both reads
 
-The reads are then grouped on these coordinate pairs for each group continues
-to the markduplicate phase. In this phase the UMI sequences are collected.
-Starting with the most common UMI sequence all others UMIs that are within
-`umi-distance` hamming distance are considered identical. The read with the
-highest score (base qualities) will be the candiate. All others will be marked
-as duplicates. In the default case when a UMI is different from the candidate
-the `RX` tag will be fixed and an `OX` tag will be added to the record.
+The reads are then grouped on these calculated coordinate pairs and for each
+group continues to a markduplicate phase. In this phase the UMI sequences are
+collected.  Starting with the most common UMI sequence all others UMIs that are
+within `umi-distance` hamming distance are considered identical. The read with
+the highest score (sum of base qualities, including mate score if available)
+will be the candiate. All others will be marked as duplicates. In the default
+case when a UMI is different from the candidate the `RX` tag will be fixed and
+an `OX` tag will be added to the record that contains the original UMI
+sequence.
 
 
 ## Limitations
-Because the program works by parsing CIGAR lines and only considering the 5'
-sequencing start coordinate as the read position in paired end mode rumidup is
-unaffacted by quality trimming and soft-clipping. For unpaired reads it can be
-assumed that soft clipping is identical across duplicates, but quality trimming
-would not. This could result in shifting of read start position so quality
-trimming is not recommended.
+Because the program works by parsing CIGAR lines and only considers the 5'
+sequencing start coordinates as the fragment coordinates in paired end mode
+rumidup is unaffected by quality trimming and soft-clipping. For unpaired reads
+the read end is also used for grouping. Soft clipping is would likely be
+identical across duplicates, but quality trimming would not. This could result
+in shifting of coordinates and failing to group possible PCR duplicates so
+quality trimming is not recommended.
 
 ## Why
 Currently the only tool capable of doing UMI aware markduplicates is in the [Picard suite](https://broadinstitute.github.io/picard/command-line-overview.html#UmiAwareMarkDuplicatesWithMateCigar). This tools has been listed as experimental for a long time and suffers from multiple issues:
-  - A bug that leads to inconsistent flagging of duplicates of both end of a paired-end sequence.
+  - A bug that leads to inconsistent flagging of duplicates of both end of a paired-end sequence [1449](https://github.com/broadinstitute/picard/issues/1449).
   - Poor performance
 
 **Why rumidup?**
-Naming is hard. If you squint you can see letters from. Rust/UMI/duplicate/illumina.
+Naming is hard. If you squint you can see letters from. Rust/UMI/duplicate/Illumina.
 
