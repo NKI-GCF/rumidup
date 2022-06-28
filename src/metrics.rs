@@ -30,15 +30,16 @@ pub enum Status {
 
 impl fmt::Display for Metrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "UNPAIRED_READS_EXAMINED\tPAIRED_READS_EXAMINED\tSECONDARY_OR_SUPPLEMENTARY_RDS\tUNMAPPED_READS\tUNPAIRED_READ_DUPLICATES\tREAD_PAIR_DUPLICATES\tREAD_PAIR_OPTICAL_DUPLICATES\tCORRECTED_UMIS\tFRACTION_DUPLICATION\tESTIMATED_LIBRARY_SIZE")?;
+        writeln!(f, "UNPAIRED_READS_EXAMINED\tPAIRED_READS_EXAMINED\tSECONDARY_OR_SUPPLEMENTARY_RDS\tUNMAPPED_READS\tUNPAIRED_READ_DUPLICATES\tUNPAIRED_READ_OPTICAL_DUPLICATES\tREAD_PAIR_DUPLICATES\tREAD_PAIR_OPTICAL_DUPLICATES\tCORRECTED_UMIS\tFRACTION_DUPLICATION\tESTIMATED_LIBRARY_SIZE")?;
         writeln!(
             f,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             self.unpaired_reads_examined,
             self.paired_reads_examined,
             self.secondary_or_supplementary_rds,
             self.unmapped_reads,
             self.unpaired_read_duplicates,
+            self.unpaired_read_optical_duplicates,
             self.read_pair_duplicates,
             self.read_pair_optical_duplicates,
             self.corrected_umis,
@@ -48,14 +49,65 @@ impl fmt::Display for Metrics {
     }
 }
 
+#[inline]
+fn f(x: f64, c: f64, n: f64) -> f64 {
+    c / x - 1.0 + (-n / x).exp()
+}
+
 impl Metrics {
     pub fn fraction_duplication(&self) -> f32 {
         (self.read_pair_duplicates / 2 + self.unpaired_read_duplicates) as f32
             / (self.unpaired_reads_examined + self.paired_reads_examined / 2) as f32
     }
 
+    /// Library size estimation ported from picard DuplicationMetrics
+    /// https://github.com/broadinstitute/picard/blob/master/src/main/java/picard/sam/markduplicates/EstimateLibraryComplexity.java
+    ///
+    /// modified to count single end reads as well
     pub fn estimated_library_size(&self) -> u64 {
-        0
+        let read_pairs = ((self.paired_reads_examined - self.read_pair_optical_duplicates) / 2
+            + self.unpaired_reads_examined
+            - self.unpaired_read_optical_duplicates) as f64;
+        let unique_read_pairs = ((self.paired_reads_examined - self.read_pair_duplicates) / 2
+            + self.unpaired_reads_examined
+            - self.unpaired_read_duplicates) as f64;
+        let read_pair_duplicates = (read_pairs - unique_read_pairs) as f64;
+
+        if read_pairs > 0.0 && read_pair_duplicates > 0.0 {
+            let mut m = 1.0f64;
+            let mut mm = 100.0f64;
+
+            if unique_read_pairs >= read_pairs
+                || f(m * unique_read_pairs, unique_read_pairs, read_pairs) < 0.0
+            {
+                panic!(
+                    "Invalid values for pairs and unique pairs: {}, {}",
+                    read_pairs, unique_read_pairs
+                );
+            }
+
+            // find value of mm, large enough to act as other side for bisection method
+            while f(mm * unique_read_pairs, unique_read_pairs, read_pairs) > 0.0 {
+                mm *= 10.0;
+            }
+
+            // use bisection method (no more than 40 times) to find solution
+            for _ in 0..40 {
+                let r = (m + mm) / 2.0;
+                let u = f(r * unique_read_pairs, unique_read_pairs, read_pairs);
+                if u == 0.0 {
+                    break;
+                } else if u > 0.0 {
+                    m = r;
+                } else if u < 0.0 {
+                    mm = r;
+                }
+            }
+
+            (unique_read_pairs * (m + mm) / 2.0) as u64
+        } else {
+            0
+        }
     }
 
     pub fn count_flags(&mut self, flags: Flags) {

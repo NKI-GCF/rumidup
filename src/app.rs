@@ -156,7 +156,8 @@ impl App {
             let is_mapped_pair = !flags.is_secondary()
                 && !flags.is_supplementary()
                 && flags.is_segmented()
-                && !flags.is_unmapped() && !flags.is_mate_unmapped();
+                && !flags.is_unmapped()
+                && !flags.is_mate_unmapped();
 
             //check if mate read has been processed before
             let seen = is_mapped_pair && self.seen.contains_key(record.read_name());

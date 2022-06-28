@@ -372,14 +372,21 @@ mod test {
     #[test]
     fn umi_readname() {
         let mut read_name = b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGC".to_vec();
-        assert_eq!(umi_from_readname(&mut read_name, false), Some(b"CGACCTAGC".to_vec()));
-        assert_eq!(read_name, b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGC");
+        assert_eq!(
+            umi_from_readname(&mut read_name, false),
+            Some(b"CGACCTAGC".to_vec())
+        );
+        assert_eq!(
+            read_name,
+            b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGC"
+        );
 
-        assert_eq!(umi_from_readname(&mut read_name, true), Some(b"CGACCTAGC".to_vec()));
+        assert_eq!(
+            umi_from_readname(&mut read_name, true),
+            Some(b"CGACCTAGC".to_vec())
+        );
         assert!(umi_from_readname(&mut read_name, true).is_none());
 
         assert_eq!(read_name, b"A01260:10:HWNYWDRXX:1:1273:8205:25598");
     }
-
-
 }
