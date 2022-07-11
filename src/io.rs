@@ -1,9 +1,12 @@
 use anyhow::Result;
-use noodles_bam::record::Record as NoodlesRecord;
 use noodles_bam::{AsyncReader as NoodlesAsyncReader, AsyncWriter as NoodlesAsyncWriter};
 use noodles_bgzf::AsyncReader as BgzfAsyncReader;
 use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
-use noodles_sam::header::{self, Header as BamHeader, ReferenceSequences};
+use noodles_core::position::Position;
+use noodles_sam::{
+    alignment::record::Record as NoodlesRecord,
+    header::{self, Header, ReferenceSequences},
+};
 use thiserror::Error;
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
@@ -15,12 +18,15 @@ where
     in_bam: NoodlesReader<R>,
     out_bam: NoodlesWriter<W>,
     next_record: Option<NoodlesRecord>,
+    header: Header,
     pub reference_sequences: ReferenceSequences,
-    ref_shift: u32,
 }
 
 type NoodlesReader<R> = NoodlesAsyncReader<BgzfAsyncReader<R>>;
 type NoodlesWriter<W> = NoodlesAsyncWriter<BgzfAsyncWriter<W>>;
+
+// Combine reference id and position to group reads
+type ChrPos = (usize, Position);
 
 /// BamIo is created from a `Read` and A `Write`. Upon construction it reads a BAM header and
 /// reference sequence from the reader and writes the modified information to the writer. BamIo can
@@ -35,21 +41,21 @@ where
     /// BAM header will be read during construction.
     pub async fn new(read: R, write: W) -> Result<BamIo<R, W>, BamIoError> {
         let mut in_bam = NoodlesAsyncReader::new(read);
-        let header = in_bam.read_header().await?;
+        let header_string = in_bam.read_header().await?;
+        let header: Header = header_string
+            .parse()
+            .map_err(|e: header::ParseError| BamIoError::ParseError(e.to_string()))?;
+
         let reference_sequences = in_bam.read_reference_sequences().await?;
 
-        let out_bam = out_bam(write, &header, &reference_sequences).await?;
-        let ref_shift = reference_sequences
-            .len()
-            .next_power_of_two()
-            .leading_zeros();
+        let out_bam = out_bam(write, header.clone(), &reference_sequences).await?;
 
         Ok(BamIo {
             in_bam,
             out_bam,
             next_record: None,
+            header,
             reference_sequences,
-            ref_shift,
         })
     }
 
@@ -66,7 +72,7 @@ where
     /// the position matches the provided position
     pub async fn read_at_pos(
         &mut self,
-        chr_pos: Option<usize>,
+        chr_pos: Option<ChrPos>,
     ) -> io::Result<Option<NoodlesRecord>> {
         if self.next_record.is_none() {
             if let Some(record) = self.read_from_bam().await? {
@@ -92,13 +98,8 @@ where
             _n => Ok(Some(record)),
         }
     }
-    fn get_chr_pos(&self, record: &NoodlesRecord) -> Option<usize> {
-        record.position().and_then(|p| {
-            usize::try_from(i32::from(p))
-                .expect("Negative position?")
-                .checked_shl(self.ref_shift)
-                .and_then(|p| record.reference_sequence_id().map(|c| usize::from(c) | p))
-        })
+    fn get_chr_pos(&self, record: &NoodlesRecord) -> Option<ChrPos> {
+        record.reference_sequence_id().zip(record.alignment_start())
     }
 
     pub async fn read_bundle(&mut self, bundle: &mut Vec<NoodlesRecord>) -> io::Result<bool> {
@@ -130,7 +131,7 @@ where
     }
 
     pub async fn write_record(&mut self, record: &NoodlesRecord) -> io::Result<()> {
-        self.out_bam.write_record(record).await
+        self.out_bam.write_record(&self.header, record).await
     }
 
     pub async fn shutdown(&mut self) -> io::Result<()> {
@@ -140,13 +141,10 @@ where
 
 async fn out_bam<W: AsyncWrite + std::marker::Unpin>(
     w: W,
-    header: &str,
+    mut header: Header,
     reference_sequences: &ReferenceSequences,
 ) -> Result<NoodlesWriter<W>, BamIoError> {
     let mut writer = NoodlesAsyncWriter::new(w);
-    let mut header: BamHeader = header
-        .parse()
-        .map_err(|e: header::ParseError| BamIoError::ParseError(e.to_string()))?;
     header
         .programs_mut()
         .insert("rumidup".to_string(), header::Program::new("rumidup"));

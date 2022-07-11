@@ -14,9 +14,10 @@ publish = false
 anyhow = "1.0.43"
 atoi = "1.0.0"
 tokio = { version = "1.11", features = ["fs", "io-std", "macros", "rt-multi-thread"] }
-noodles-bam = { version = "0.16.0", features = ["async"] }
-noodles-sam = "0.13.0"
-noodles-bgzf = { version = "0.10.0", features = ["async"] }
+noodles-bam = { version = "0.20.0", features = ["async"] }
+noodles-core = "0.7.0"
+noodles-sam = "0.17.0"
+noodles-bgzf = { version = "0.13.0", features = ["async"] }
 clap = { version = "3.1.0", features = ["derive"] }
 thiserror = "1.0.28"
 regex = "1.5.4"
