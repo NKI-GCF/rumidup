@@ -48,5 +48,5 @@ jobs:
           tags: |
             nkigcf/rumidup:${{ github.event.release.tag_name }}
             nkigcf/rumidup:latest
-            ghcr.io/NKI-GCF/rumidup:${{ github.event.release.tag_name }}
-            ghcr.io/NKI-GCF/rumidup:latest
+            ghcr.io/nki-gcf/rumidup:${{ github.event.release.tag_name }}
+            ghcr.io/nki-gcf/rumidup:latest
