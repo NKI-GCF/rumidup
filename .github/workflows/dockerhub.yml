@@ -37,7 +37,7 @@ jobs:
         with:
           push: true
           tags: |
-            TODO_REPLACE_WITH_DOCKERHUB_USERNAME/rumidup:dev
+            nkigcf/rumidup:dev
             ghcr.io/NKI-GCF/rumidup:dev
 
       - name: Push release image
@@ -46,7 +46,7 @@ jobs:
         with:
           push: true
           tags: |
-            TODO_REPLACE_WITH_DOCKERHUB_USERNAME/rumidup:${{ github.event.release.tag_name }}
-            TODO_REPLACE_WITH_DOCKERHUB_USERNAME/rumidup:latest
+            nkigcf/rumidup:${{ github.event.release.tag_name }}
+            nkigcf/rumidup:latest
             ghcr.io/NKI-GCF/rumidup:${{ github.event.release.tag_name }}
             ghcr.io/NKI-GCF/rumidup:latest
