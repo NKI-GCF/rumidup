@@ -38,7 +38,7 @@ jobs:
           push: true
           tags: |
             nkigcf/rumidup:dev
-            ghcr.io/NKI-GCF/rumidup:dev
+            ghcr.io/nki-gcf/rumidup:dev
 
       - name: Push release image
         uses: docker/build-push-action@v2
