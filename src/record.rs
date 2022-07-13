@@ -1,47 +1,24 @@
-use std::convert::TryFrom;
-
-use noodles_bam::record::data::{field::Value, Data, Field};
-pub use noodles_bam::record::Record as BamRecord;
-use noodles_sam::record::{data::field::Tag, Cigar as SamCigar};
-pub use noodles_sam::record::{Flags, Position};
+pub use noodles_core::Position;
+pub use noodles_sam::alignment::Record as BamRecord;
+use noodles_sam::record::{
+    data::field::{Field, Tag, Value},
+    Cigar,
+};
+pub use noodles_sam::record::{Flags, ReadName};
 use thiserror::Error;
 
 use crate::bktree::Dist;
 use crate::optical::Location;
 
-pub type ReadName = Vec<u8>;
+//pub type ReadName = Vec<u8>;
 
 #[derive(Debug)]
 pub struct UmiRecord {
     pub record: BamRecord,
     pub umi: Vec<u8>,
-    pub mate_score: Option<u32>,
-    pub mate_cigar: Option<SamCigar>,
+    pub mate_score: Option<i32>,
+    pub mate_cigar: Option<Cigar>,
     pub location: Option<Location>,
-}
-
-#[derive(Debug, Default)]
-struct FieldIndex {
-    umi: Option<usize>,
-    mate_score: Option<usize>,
-    mate_cigar: Option<usize>,
-}
-
-impl TryFrom<&Data> for FieldIndex {
-    type Error = RecordError;
-    fn try_from(data: &Data) -> Result<Self, Self::Error> {
-        let mut fields = FieldIndex::default();
-        for (index, key) in data.keys().enumerate() {
-            let key = key?;
-            match key {
-                Tag::UmiSequence => fields.umi = Some(index),
-                Tag::Other(_) if key.as_ref() == b"ms" => fields.mate_score = Some(index),
-                Tag::MateCigar => fields.mate_cigar = Some(index),
-                _ => {}
-            }
-        }
-        Ok(fields)
-    }
 }
 
 impl From<UmiRecord> for BamRecord {
@@ -73,140 +50,95 @@ impl TryFrom<&[u8]> for Location {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum FragmentCoord {
-    Read1Start(i32),
-    Read2Start(i32),
-    MateStartFw(i32),
-    MateStartRev(i32),
-    FragmentEnd(i32),
+    Read1Start(usize),
+    Read2Start(usize),
+    MateStartFw(usize),
+    MateStartRev(usize),
+    FragmentEnd(usize),
 }
 
-impl FieldIndex {
-    fn mate_score(&self, data: &Data) -> Result<Option<u32>, RecordError> {
-        self.mate_score
-            .and_then(|i| data.get_index(i))
-            .transpose()?
-            .and_then(|value| value.value().as_int())
-            .map(|score| u32::try_from(score).map_err(|_| RecordError::NoMateScore))
-            .transpose()
-    }
-
-    fn mate_cigar(&self, data: &Data) -> Result<Option<SamCigar>, RecordError> {
-        self.mate_cigar
-            .and_then(|i| data.get_index(i))
-            .transpose()?
-            .map(|value| {
-                value
-                    .value()
-                    .as_str()
-                    .ok_or(RecordError::InvalidMateCigar)
-                    .and_then(|cs| {
-                        cs.parse::<SamCigar>()
-                            .map_err(|_| RecordError::InvalidMateCigar)
-                    })
-            })
-            .transpose()
-    }
-
-    fn umi(&self, data: &Data) -> Result<Vec<u8>, RecordError> {
-        if let Some(i) = self.umi {
-            Ok(data
-                .get_index(i)
-                .unwrap()?
-                .value()
-                .as_str()
-                .unwrap()
-                .as_bytes()
-                .to_vec())
-        } else {
-            Err(RecordError::NoUmi)
+impl From<BamRecord> for UmiRecord {
+    fn from(record: BamRecord) -> UmiRecord {
+        UmiRecord {
+            record,
+            umi: Vec::with_capacity(10),
+            mate_score: None,
+            mate_cigar: None,
+            location: None,
         }
-    }
-
-    fn set_umi(&self, umi: &[u8], data: &mut Data) -> Result<(), RecordError> {
-        if data
-            .insert(Field::new(
-                Tag::UmiSequence,
-                Value::String(String::from_utf8_lossy(umi).to_string()),
-            ))
-            .transpose()?
-            .is_some()
-        {
-            return Err(RecordError::ParseError(
-                "Record has an UMI both in tags and in the read name".to_string(),
-            ));
-        }
-        Ok(())
     }
 }
 
 impl UmiRecord {
-    pub fn from_bam_record(
-        mut r: BamRecord,
-        edit_readname: bool,
-        extract_tags: bool,
-        extract_location: bool,
-    ) -> Result<UmiRecord, RecordError> {
-        let data_fields = FieldIndex::try_from(r.data())?;
-        // Assume the tag is in the readname. when found overwrite any tag in RX
-        let umi = if let Some(umi) = umi_from_readname(r.read_name_mut(), edit_readname) {
-            data_fields.set_umi(&umi, r.data_mut())?;
-            umi
+    /// Extract the UMI sequence from the record
+    /// If the RX tag is present this is used. Otherwise the final part of the readname is
+    /// considered to be the UMI sequence (this is the BCLconvert default). If this looks like a
+    /// umi the sequence is put into an RX tag and (optionally) removed from the readname
+    pub fn extract_umi(&mut self, edit_readname: bool) -> Result<(), RecordError> {
+        if let Some(rx) = self.record.data().get(Tag::UmiSequence) {
+            if let Some(umi) = rx.value().as_str().map(|v| v.as_bytes()) {
+                self.umi.extend(umi);
+            } else {
+                return Err(RecordError::NoUmi);
+            }
+        } else if let Some(read_name) = self
+            .record
+            .read_name()
+            .map(|r| AsRef::<[u8]>::as_ref(r).to_vec())
+        {
+            if let Some((umi, clipped)) = umi_from_readname(&read_name) {
+                if edit_readname {
+                    let newname =
+                        ReadName::try_new(clipped).expect("Error using UMI clipped readname");
+                    self.record.read_name_mut().replace(newname);
+                }
+                self.umi.extend(umi);
+                self.record.data_mut().insert(Field::new(Tag::UmiSequence, Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap()));
+            } else {
+                return Err(RecordError::NoUmi);
+            }
         } else {
-            data_fields.umi(r.data())?
-        };
-
-        if umi.is_empty() {
             return Err(RecordError::NoUmi);
         }
 
-        let mate_score = if extract_tags {
-            Some(
-                data_fields
-                    .mate_score(r.data())?
-                    .ok_or(RecordError::NoMateScore)?,
-            )
-        } else {
-            None
-        };
+        Ok(())
+    }
 
-        let mate_cigar = if extract_tags {
-            Some(
-                data_fields
-                    .mate_cigar(r.data())?
-                    .ok_or(RecordError::NoMateCigar)?,
-            )
-        } else {
-            None
-        };
+    /// Paired end reads require both MC and ms tags for rumidup to work
+    pub fn extract_mate_tags(&mut self) -> Result<(), RecordError> {
+        let data = self.record.data();
+        self.mate_score = Some(
+            data.get(Tag::try_from(*b"ms").unwrap())
+                .and_then(|f| f.value().as_int32())
+                .ok_or(RecordError::NoMateScore)?,
+        );
+        self.mate_cigar = Some(
+            data.get(Tag::MateCigar)
+                .and_then(|f| f.value().as_str())
+                .map(|s| s.parse().map_err(|_| RecordError::NoMateCigar))
+                .transpose()?
+                .ok_or(RecordError::NoMateCigar)?,
+        );
+        Ok(())
+    }
 
-        let location = if extract_location {
-            if Location::try_from(r.read_name()).is_err() {
-                eprintln!("{:?}", r);
-            }
-            Some(Location::try_from(r.read_name())?)
-        } else {
-            None
-        };
-
-        Ok(UmiRecord {
-            record: r,
-            umi,
-            mate_score,
-            mate_cigar,
-            location,
-        })
+    /// Extract the tile and coordinates when illumina read names are used. Can then be used for
+    /// optical duplicate detection.
+    pub fn extract_location(&mut self) -> Result<(), RecordError> {
+        self.location = Some(Location::try_from(self.read_name().as_ref())?);
+        Ok(())
     }
 
     pub fn position(&self) -> Option<Position> {
-        self.record.position()
+        self.record.alignment_start()
     }
 
     pub fn flags(&self) -> Flags {
         self.record.flags()
     }
 
-    pub fn read_name(&self) -> &[u8] {
-        self.record.read_name()
+    pub fn read_name(&self) -> &ReadName {
+        self.record.read_name().unwrap()
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {
@@ -225,10 +157,10 @@ impl UmiRecord {
         }
 
         let paired = flags.is_segmented();
-        let start = self.position().map(|i| i.into())?;
+        let start: usize = self.position().map(|i| i.into())?;
 
         if flags.is_reverse_complemented() {
-            let len = self.record.cigar().reference_len().unwrap() as i32;
+            let len = self.record.cigar().alignment_span();
             if !paired || flags.is_first_segment() {
                 Some(FragmentCoord::Read1Start(start + len))
             } else {
@@ -248,26 +180,21 @@ impl UmiRecord {
 
         //read is single end (no mate or unmapped)
         if !flags.is_segmented() || flags.is_mate_unmapped() {
-            let start = self.record.position().map(|i| i.into())?;
+            let start = self.record.alignment_start().map(|i| i.into())?;
             if flags.is_reverse_complemented() {
                 return Some(FragmentCoord::FragmentEnd(start));
             } else {
-                let len = self.record.cigar().reference_len().unwrap() as i32;
+                let len = self.record.cigar().alignment_span();
                 return Some(FragmentCoord::FragmentEnd(start + len));
             }
         }
 
         // two reads are mapped
-        let mate_start = self.record.mate_position().map(|i| i.into())?;
+        let mate_start = self.record.mate_alignment_start().map(|i| i.into())?;
 
         if flags.is_mate_reverse_complemented() {
             //maybe use template len for proper pairs
-            let len = self.mate_cigar.as_ref()?.reference_len() as i32;
-            if flags.is_properly_aligned() {
-                //test bam sanity
-                let start: i32 = self.record.position().map(|i| i.into())?;
-                debug_assert_eq!(mate_start + len - start, self.record.template_length())
-            }
+            let len = self.mate_cigar.as_ref()?.alignment_span();
             Some(FragmentCoord::MateStartRev(mate_start + len))
         } else {
             Some(FragmentCoord::MateStartFw(mate_start))
@@ -279,12 +206,13 @@ impl UmiRecord {
         !flags.is_unmapped() && !flags.is_supplementary() && !flags.is_secondary()
     }
 
-    pub fn score(&self) -> u32 {
+    pub fn score(&self) -> i32 {
         self.record
             .quality_scores()
-            .scores()
-            .filter_map(|s| s.map(|q| u32::from(u8::from(q))).ok())
-            .sum::<u32>()
+            .as_ref()
+            .iter()
+            .map(|&s| i32::from(u8::from(s)))
+            .sum::<i32>()
             + self.mate_score.unwrap_or(0)
     }
 
@@ -305,7 +233,6 @@ impl UmiRecord {
 
         let old = data
             .insert(Field::new(Tag::UmiSequence, Value::String(umi.into())))
-            .unwrap()
             .unwrap();
         if original_tag {
             data.insert(Field::new(
@@ -320,18 +247,15 @@ pub fn isbase(b: &u8) -> bool {
     b == &b'A' || b == &b'C' || b == &b'G' || b == &b'T' || b == &b'N'
 }
 
-fn umi_from_readname(r: &mut Vec<u8>, edit: bool) -> Option<Vec<u8>> {
+fn umi_from_readname(r: &[u8]) -> Option<(&[u8], &[u8])> {
     if let Some(lastcolon) = r.iter().rev().position(|&c| c == b':') {
         let pos = r.len() - lastcolon;
         if lastcolon >= 3 && r[pos..].iter().all(isbase) {
-            let umi = r[pos..].to_vec();
-            if edit {
-                r.truncate(pos - 1);
-            }
-            return Some(umi);
+            let umi = &r[pos..];
+            let clipped = &r[0..pos - 1];
+            return Some((umi, clipped));
         }
     }
-
     None
 }
 
@@ -371,22 +295,19 @@ mod test {
 
     #[test]
     fn umi_readname() {
-        let mut read_name = b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGC".to_vec();
         assert_eq!(
-            umi_from_readname(&mut read_name, false),
-            Some(b"CGACCTAGC".to_vec())
-        );
-        assert_eq!(
-            read_name,
-            b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGC"
+            umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGN"[..]),
+            Some((&b"CGACCTAGN"[..], &b"A01260:10:HWNYWDRXX:1:1273:8205:25598"[..]))
         );
 
         assert_eq!(
-            umi_from_readname(&mut read_name, true),
-            Some(b"CGACCTAGC".to_vec())
+            umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCXAGC"[..]),
+            None
         );
-        assert!(umi_from_readname(&mut read_name, true).is_none());
 
-        assert_eq!(read_name, b"A01260:10:HWNYWDRXX:1:1273:8205:25598");
+        assert_eq!(
+            umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CC"[..]),
+            None
+        );
     }
 }

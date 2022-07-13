@@ -146,10 +146,13 @@ impl App {
 
     fn process_in_records(&mut self) -> Result<(), RumidupError> {
         for record in self.records.drain(..) {
+            let mut umirecord: UmiRecord = record.into();
             let mut result = MarkResult::Unusable;
 
-            let flags = record.flags();
+            let flags = umirecord.flags();
             self.metrics.count_flags(flags);
+
+            umirecord.extract_umi(!self.config.keep_readname)?;
 
             //duplication status of reads that have both (first and last segment) mapped is only
             //determined once and applied to both
@@ -160,20 +163,18 @@ impl App {
                 && !flags.is_mate_unmapped();
 
             //check if mate read has been processed before
-            let seen = is_mapped_pair && self.seen.contains_key(record.read_name());
+            let seen = is_mapped_pair && self.seen.contains_key(umirecord.read_name());
 
             let willmarkdup =
                 !seen && !flags.is_secondary() && !flags.is_supplementary() && !flags.is_unmapped();
 
-            let extract_tags = willmarkdup && is_mapped_pair;
-            let extract_location = willmarkdup && self.config.pixel_distance > 0;
+            if willmarkdup && is_mapped_pair {
+                umirecord.extract_mate_tags()?;
+            }
 
-            let umirecord = UmiRecord::from_bam_record(
-                record,
-                !self.config.keep_readname,
-                extract_tags,
-                extract_location,
-            )?;
+            if willmarkdup && self.config.pixel_distance > 0 {
+                umirecord.extract_location()?;
+            }
 
             if seen {
                 result = MarkResult::Skipped;
@@ -186,7 +187,7 @@ impl App {
 
                 if is_mapped_pair {
                     self.seen
-                        .insert(umirecord.read_name().to_vec(), result.clone());
+                        .insert(umirecord.read_name().clone(), result.clone());
                 }
             }
             self.record_results.push(result);
@@ -339,11 +340,11 @@ impl App {
                 }
                 MarkResult::Failed => eprintln!(
                     "Record failed to parse usable coordinates {}, rumidup skipped this record, but it might indicate problems with the BAM file",
-                    std::string::String::from_utf8_lossy(self.umirecords[i].read_name())
+                    self.umirecords[i].read_name()
                 ),
                 MarkResult::Unknown(_) => eprintln!(
                     "Record still marked unknown after dedup: {}. This is a BUG!",
-                    std::string::String::from_utf8_lossy(self.umirecords[i].read_name())
+                    self.umirecords[i].read_name()
                 ),
             }
         }
