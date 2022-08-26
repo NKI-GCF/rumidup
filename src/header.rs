@@ -116,13 +116,7 @@ impl BamHeader {
                 if chains.values().any(|&l| l > 1) {
                     chains
                         .iter()
-                        .filter_map(|(s, &l)| {
-                            if l > 1 {
-                                Some(s.to_string())
-                            } else {
-                                None
-                            }
-                        })
+                        .filter_map(|(s, &l)| if l > 1 { Some(s.to_string()) } else { None })
                         .collect()
                 } else {
                     chains.keys().map(|s| s.to_string()).collect()
@@ -163,6 +157,21 @@ impl ProgramExt for Program {
     /// samtools markdup
     /// rumidup
     fn is_markdup(&self) -> bool {
+        if let Some(name) = self.name() {
+            if name.contains("MarkDuplicates") || name == "rumidup" {
+                return true;
+            }
+            if let Some(command_line) = self.command_line() {
+                if command_line.starts_with("samtools markdup") && name == "samtools" {
+                    return true;
+                }
+            }
+        } else if let Some(command_line) = self.command_line() {
+            if self.id().starts_with("sambamba") && command_line.starts_with("markdup") {
+                return true;
+            }
+        }
+
         false
     }
 }

@@ -61,7 +61,7 @@ pub struct Config {
 
     /// Do not add PG tag to header
     #[clap(long)]
-    pub no_pg: bool
+    pub no_pg: bool,
 }
 
 pub struct App {
