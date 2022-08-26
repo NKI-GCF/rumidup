@@ -7,6 +7,7 @@ use noodles_sam::{alignment::record::Record as NoodlesRecord, header::ReferenceS
 use thiserror::Error;
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
+use crate::app::CmdInfo;
 use crate::header::{self, BamHeader};
 
 pub struct BamIo<R, W>
@@ -38,11 +39,12 @@ where
 {
     /// Create a new reader for `reader`. `reader` should be a at the beginning of a BAM file. The
     /// BAM header will be read during construction.
+    /// Pass a CmdInfo struct to insert PG line in the BAM header
     pub async fn new(
         read: R,
         write: W,
         force_rerun: bool,
-        add_pg: bool,
+        exe_info: Option<CmdInfo>,
     ) -> Result<BamIo<R, W>, BamIoError> {
         let mut in_bam = NoodlesAsyncReader::new(read);
         let header_string = in_bam.read_header().await?;
@@ -59,8 +61,8 @@ where
             }
         }
 
-        if add_pg {
-            header.add_rumidup_pg()
+        if let Some(cmd) = exe_info {
+            header.add_rumidup_pg(&cmd.command_line, &cmd.version)
         }
 
         let mut out_bam = NoodlesAsyncWriter::new(write);

@@ -2,7 +2,7 @@ use std::marker::Unpin;
 use std::path::PathBuf;
 
 use ahash::{AHashMap, AHashSet};
-use clap::Parser;
+use clap::{crate_version, Parser};
 use thiserror::Error;
 use tokio::{
     fs::File,
@@ -74,6 +74,11 @@ pub struct App {
     record_results: Vec<MarkResult>,
 }
 
+pub struct CmdInfo {
+    pub command_line: String,
+    pub version: String,
+}
+
 /// In the BK tree we store the umi, and the index of the
 /// record in the ReadBundle
 #[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
@@ -102,8 +107,17 @@ impl Dist for UmiIndex {
 impl App {
     pub async fn new() -> Result<App, RumidupError> {
         let config = Config::parse();
-        let cmdline = std::env::args().collect::<Vec<String>>().join(" ");
-        eprintln!("{}", cmdline);
+
+        let cmd_info = if config.no_pg {
+            None
+        } else {
+            let command_line = std::env::args().collect::<Vec<String>>().join(" ");
+            let version = crate_version!().to_owned();
+            Some(CmdInfo {
+                command_line,
+                version,
+            })
+        };
 
         let read: Box<dyn AsyncRead + Unpin> = if let Some(p) = config.bam.as_ref() {
             Box::new(File::open(p).await?)
@@ -117,7 +131,7 @@ impl App {
             Box::new(io::stdout())
         };
 
-        let bamio = BamIo::new(read, write, config.force, !config.no_pg).await?;
+        let bamio = BamIo::new(read, write, config.force, cmd_info).await?;
 
         Ok(App {
             config,

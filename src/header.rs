@@ -34,7 +34,7 @@ impl BamHeader {
             .map(|p| p.to_string())
     }
 
-    pub fn add_rumidup_pg(&mut self) {
+    pub fn add_rumidup_pg(&mut self, command_line: &str, version: &str) {
         let pps = self.pg_chains();
 
         if pps.is_empty() {
@@ -44,8 +44,8 @@ impl BamHeader {
                 Program::builder()
                     .set_id(id)
                     .set_name("rumidup")
-                    .set_version("0.1")
-                    .set_command_line("cmd")
+                    .set_version(version)
+                    .set_command_line(command_line)
                     .build()
                     .expect("Error building program"),
             );
@@ -57,8 +57,8 @@ impl BamHeader {
                     Program::builder()
                         .set_id(id)
                         .set_name("rumidup")
-                        .set_version("0.1")
-                        .set_command_line("cmd")
+                        .set_version(version)
+                        .set_command_line(command_line)
                         .set_previous_id(p)
                         .build()
                         .expect("Error building program"),
