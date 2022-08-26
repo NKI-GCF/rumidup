@@ -93,7 +93,10 @@ impl UmiRecord {
                     self.record.read_name_mut().replace(newname);
                 }
                 self.umi.extend(umi);
-                self.record.data_mut().insert(Field::new(Tag::UmiSequence, Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap()));
+                self.record.data_mut().insert(Field::new(
+                    Tag::UmiSequence,
+                    Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap(),
+                ));
             } else {
                 return Err(RecordError::NoUmi);
             }
@@ -297,7 +300,10 @@ mod test {
     fn umi_readname() {
         assert_eq!(
             umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CGACCTAGN"[..]),
-            Some((&b"CGACCTAGN"[..], &b"A01260:10:HWNYWDRXX:1:1273:8205:25598"[..]))
+            Some((
+                &b"CGACCTAGN"[..],
+                &b"A01260:10:HWNYWDRXX:1:1273:8205:25598"[..]
+            ))
         );
 
         assert_eq!(
