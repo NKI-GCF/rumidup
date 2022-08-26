@@ -3,12 +3,11 @@ use noodles_bam::{AsyncReader as NoodlesAsyncReader, AsyncWriter as NoodlesAsync
 use noodles_bgzf::AsyncReader as BgzfAsyncReader;
 use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
 use noodles_core::position::Position;
-use noodles_sam::{
-    alignment::record::Record as NoodlesRecord,
-    header::{self, Header, ReferenceSequences},
-};
+use noodles_sam::{alignment::record::Record as NoodlesRecord, header::ReferenceSequences};
 use thiserror::Error;
 use tokio::io::{self, AsyncRead, AsyncWrite};
+
+use crate::header::{self, BamHeader};
 
 pub struct BamIo<R, W>
 where
@@ -18,7 +17,7 @@ where
     in_bam: NoodlesReader<R>,
     out_bam: NoodlesWriter<W>,
     next_record: Option<NoodlesRecord>,
-    header: Header,
+    header: BamHeader,
     pub reference_sequences: ReferenceSequences,
 }
 
@@ -39,16 +38,36 @@ where
 {
     /// Create a new reader for `reader`. `reader` should be a at the beginning of a BAM file. The
     /// BAM header will be read during construction.
-    pub async fn new(read: R, write: W) -> Result<BamIo<R, W>, BamIoError> {
+    pub async fn new(
+        read: R,
+        write: W,
+        force_rerun: bool,
+        add_pg: bool,
+    ) -> Result<BamIo<R, W>, BamIoError> {
         let mut in_bam = NoodlesAsyncReader::new(read);
         let header_string = in_bam.read_header().await?;
-        let header: Header = header_string
-            .parse()
-            .map_err(|e: header::ParseError| BamIoError::ParseError(e.to_string()))?;
-
         let reference_sequences = in_bam.read_reference_sequences().await?;
 
-        let out_bam = out_bam(write, header.clone(), &reference_sequences).await?;
+        let mut header: BamHeader = header_string.parse()?;
+        if let Some(pg) = header.detect_markdups() {
+            eprintln!(
+                "Probable previous markduplictes detected in PG lines:\n{}",
+                pg
+            );
+            if !force_rerun {
+                return Err(BamIoError::MarkDupsDetected);
+            }
+        }
+
+        if add_pg {
+            header.add_rumidup_pg()
+        }
+
+        let mut out_bam = NoodlesAsyncWriter::new(write);
+        out_bam.write_header(header.as_ref()).await?;
+        out_bam
+            .write_reference_sequences(&reference_sequences)
+            .await?;
 
         Ok(BamIo {
             in_bam,
@@ -131,29 +150,14 @@ where
     }
 
     pub async fn write_record(&mut self, record: &NoodlesRecord) -> io::Result<()> {
-        self.out_bam.write_record(&self.header, record).await
+        self.out_bam
+            .write_record(self.header.as_ref(), record)
+            .await
     }
 
     pub async fn shutdown(&mut self) -> io::Result<()> {
         self.out_bam.shutdown().await
     }
-}
-
-async fn out_bam<W: AsyncWrite + std::marker::Unpin>(
-    w: W,
-    mut header: Header,
-    reference_sequences: &ReferenceSequences,
-) -> Result<NoodlesWriter<W>, BamIoError> {
-    let mut writer = NoodlesAsyncWriter::new(w);
-    header
-        .programs_mut()
-        .insert("rumidup".to_string(), header::Program::new("rumidup"));
-    writer.write_header(&header).await?;
-    writer
-        .write_reference_sequences(reference_sequences)
-        .await?;
-
-    Ok(writer)
 }
 
 #[derive(Debug, Error)]
@@ -162,4 +166,8 @@ pub enum BamIoError {
     IoError(#[from] std::io::Error),
     #[error("ParseError reading BAM: {0}")]
     ParseError(String),
+    #[error("Error in BAM header")]
+    HeaderError(#[from] header::ParseError),
+    #[error("Markduplicates evidence present in BAM header")]
+    MarkDupsDetected,
 }

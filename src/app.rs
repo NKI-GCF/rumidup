@@ -58,6 +58,10 @@ pub struct Config {
     /// Only affects metrics
     #[clap(short = 'p', long, default_value = "100")]
     pub pixel_distance: i32,
+
+    /// Do not add PG tag to header
+    #[clap(long)]
+    pub no_pg: bool
 }
 
 pub struct App {
@@ -98,6 +102,8 @@ impl Dist for UmiIndex {
 impl App {
     pub async fn new() -> Result<App, RumidupError> {
         let config = Config::parse();
+        let cmdline = std::env::args().collect::<Vec<String>>().join(" ");
+        eprintln!("{}", cmdline);
 
         let read: Box<dyn AsyncRead + Unpin> = if let Some(p) = config.bam.as_ref() {
             Box::new(File::open(p).await?)
@@ -111,7 +117,7 @@ impl App {
             Box::new(io::stdout())
         };
 
-        let bamio = BamIo::new(read, write).await?;
+        let bamio = BamIo::new(read, write, config.force, !config.no_pg).await?;
 
         Ok(App {
             config,

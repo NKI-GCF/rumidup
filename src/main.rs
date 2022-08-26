@@ -4,6 +4,7 @@ use anyhow::Result;
 
 mod app;
 pub mod bktree;
+mod header;
 pub mod io;
 pub mod markdups;
 pub mod metrics;
