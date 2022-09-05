@@ -1,6 +1,6 @@
 [package]
 name = "rumidup"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Arno Velds <a.velds@nki.nl>", "Roel Kluin <r.kluin@nki.nl>"]
 edition = "2021"
 description = "Rumidup is a UMI aware mark duplicates tools for NGS sequencing data."
