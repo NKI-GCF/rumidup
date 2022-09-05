@@ -30,44 +30,30 @@ depending on configuration.
 
 ### Options
 ```
-    -b, --bam <BAM>
-            The input bam file. rumidup reads from stdin when omitted
-
-    -d, --umi-distance <UMI_DISTANCE>
-            UMI distance. The maximin hamming distance between the UMI seqeunces used to consider
-            read(pairs) to be duplicates [default: 1]
-
-    -f, --force
-            Ignore previous duplicate marking applied to BAM file. This information is extracted
-            from the header. Use --force to redoing duplicate marking
-
-    -h, --help
-            Print help information
-
-    -k, --keep-readname
-            Don't remove UMI from read name
-
-    -m, --metrics <METRICS>
-            The duplication metrics file, if missing metrics will be written to stderr
-
-        --no-pg
-            Do not add PG tag to header
-
-    -o, --output <OUTPUT>
-            The output bam file. rumidup writes to stdout when omitted
-
-    -p, --pixel-distance <PIXEL_DISTANCE>
-            Optical duplicate pixel distance. Maximum distance between clusters to consider them
-            optical duplicates use 100 for HiSeq/NextSeq, 2500 for NovaSeq. use 0 to disable optical
-            duplicate counting Only affects metrics [default: 100]
-
-    -V, --version
-            Print version information
-
-    -x, --no-original-tag
-            When a UMI is corrected the original tag is writtento the OX field. Use --no-original-
-            tag to suppress this
-
+    -b, --bam <FILE>              The input bam file. rumidup reads from stdin when omitted
+    -o, --output <FILE>           The output bam file. rumidup writes to stdout when omitted
+    -m, --metrics <FILE>          The duplication metrics file, if missing metrics will be written
+                                  to stderr
+    -p, --pixel-distance <INT>    Optical duplicate pixel distance. Maximum distance between
+                                  clusters to consider them optical duplicates use 100 for
+                                  HiSeq/NextSeq, 2500 for NovaSeq. use 0 to disable optical
+                                  duplicate counting. Only affects metrics [default: 100]
+    -d, --umi-distance <INT>      UMI distance. The maximin hamming distance between the UMI
+                                  seqeunces used to consider read(pairs) to be duplicates [default:
+                                  1]
+    -x, --no-original-tag         When a UMI is corrected the original tag is writtento the OX
+                                  field. use --no-original-tag to suppress this
+    -k, --keep-readname           Don't remove UMI from read name
+    -f, --force                   Ignore previous duplicate marking applied to BAM file. This
+                                  information is extracted from the header. Use --force to redoing
+                                  duplicate marking
+        --no-pg                   Do not add PG tag to header
+        --force-compression       Force compression when writing to stdout. Normally when writing to
+                                  a pipe the BAM stream is written without compression. Toggle this
+                                  flag when redirecting to a file and force compression of the
+                                  stream
+    -h, --help                    Print help information
+    -V, --version                 Print version information
 ```
 
 ### Example
@@ -115,7 +101,7 @@ quality trimming is not recommended.
 Currently the only tool capable of doing UMI aware markduplicates is in the [Picard suite](https://broadinstitute.github.io/picard/command-line-overview.html#UmiAwareMarkDuplicatesWithMateCigar). This tools has been listed as experimental for a long time and suffers from multiple issues:
   - A bug that leads to inconsistent flagging of duplicates of both end of a paired-end sequence [1449](https://github.com/broadinstitute/picard/issues/1449).
   - Poor performance
-Since version 1.16 `samtools markdup` also supports UMI tags, but only allows exact matches in stead of a configurable hamming distance
+  - Since version 1.16 `samtools markdup` also supports UMI tags, but only allows exact matches in stead of a configurable hamming distance
 
 **Why rumidup?**
 Naming is hard. If you squint you can see letters from. Rust/UMI/duplicate/Illumina.
