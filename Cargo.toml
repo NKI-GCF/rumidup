@@ -10,6 +10,9 @@ keywords = ["command-line-utilities" ,"science"]
 exclude = ["publication"]
 publish = false
 
+[features]
+zlib-ng = ["flate2/zlib-ng"]
+
 [dependencies]
 anyhow = "1.0.43"
 atoi = "1.0.0"
@@ -24,6 +27,7 @@ regex = "1.5.4"
 ahash = "0.8.0"
 smallvec = "1.7.0"
 vec_map = "0.8.2"
+flate2 = { version = "1.0.24", optional = true}
 
 [profile.release]
 debug = 1
