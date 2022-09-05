@@ -62,6 +62,12 @@ pub struct Config {
     /// Do not add PG tag to header
     #[clap(long)]
     pub no_pg: bool,
+
+    /// Force compression when writing to stdout.
+    /// Normally when writing to a pipe the BAM stream is written without compression. Toggle this
+    /// flag when redirecting to a file and force compression of the stream.
+    #[clap(long)]
+    pub force_compression: bool,
 }
 
 pub struct App {
@@ -125,13 +131,17 @@ impl App {
             Box::new(io::stdin())
         };
 
+        let mut compress_out = true;
         let write: Box<dyn AsyncWrite + Unpin> = if let Some(p) = config.output.as_ref() {
             Box::new(File::create(p).await?)
         } else {
+            if !config.force_compression {
+                compress_out = false;
+            }
             Box::new(io::stdout())
         };
 
-        let bamio = BamIo::new(read, write, config.force, cmd_info).await?;
+        let bamio = BamIo::new(read, write, config.force, compress_out, cmd_info).await?;
 
         Ok(App {
             config,

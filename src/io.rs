@@ -1,7 +1,8 @@
 use anyhow::Result;
 use noodles_bam::{AsyncReader as NoodlesAsyncReader, AsyncWriter as NoodlesAsyncWriter};
-use noodles_bgzf::AsyncReader as BgzfAsyncReader;
-use noodles_bgzf::AsyncWriter as BgzfAsyncWriter;
+use noodles_bgzf::{
+    writer::CompressionLevel, AsyncReader as BgzfAsyncReader, AsyncWriter as BgzfAsyncWriter,
+};
 use noodles_core::position::Position;
 use noodles_sam::{alignment::record::Record as NoodlesRecord, header::ReferenceSequences};
 use thiserror::Error;
@@ -44,6 +45,7 @@ where
         read: R,
         write: W,
         force_rerun: bool,
+        compress_out: bool,
         exe_info: Option<CmdInfo>,
     ) -> Result<BamIo<R, W>, BamIoError> {
         let mut in_bam = NoodlesAsyncReader::new(read);
@@ -64,8 +66,12 @@ where
         if let Some(cmd) = exe_info {
             header.add_rumidup_pg(&cmd.command_line, &cmd.version)
         }
-
-        let mut out_bam = NoodlesAsyncWriter::new(write);
+        let mut builder = BgzfAsyncWriter::builder(write);
+        if !compress_out {
+            builder = builder.set_compression_level(CompressionLevel::none());
+        }
+        let writer = builder.build();
+        let mut out_bam = NoodlesAsyncWriter::from(writer);
         out_bam.write_header(header.as_ref()).await?;
         out_bam
             .write_reference_sequences(&reference_sequences)
