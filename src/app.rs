@@ -20,53 +20,53 @@ use crate::{
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {
-    /// The input bam file. rumidup reads from stdin when omitted
-    #[clap(short, long)]
+    /// The input bam file. rumidup reads from stdin when omitted.
+    #[clap(short, long, value_name = "FILE", display_order = 1)]
     pub bam: Option<PathBuf>,
 
-    /// The output bam file. rumidup writes to stdout when omitted
-    #[clap(short, long)]
+    /// The output bam file. rumidup writes to stdout when omitted.
+    #[clap(short, long, value_name = "FILE", display_order = 2)]
     pub output: Option<PathBuf>,
 
-    /// The duplication metrics file, if missing metrics will be written to stderr
-    #[clap(short = 'm', long)]
+    /// The duplication metrics file, if missing metrics will be written to stderr.
+    #[clap(short = 'm', long, value_name = "FILE", display_order = 3)]
     pub metrics: Option<PathBuf>,
 
     /// Ignore previous duplicate marking applied to BAM file. This information is extracted from
-    /// the header. Use --force to redoing duplicate marking
-    #[clap(short, long)]
+    /// the header. Use --force to redoing duplicate marking.
+    #[clap(short, long, display_order = 50)]
     pub force: bool,
 
     /// When a UMI is corrected the original tag is writtento the OX field.
-    /// use --no-original-tag to suppress this
-    #[clap(short = 'x', long)]
+    /// use --no-original-tag to suppress this.
+    #[clap(short = 'x', long, display_order = 20)]
     pub no_original_tag: bool,
 
     /// Don't remove UMI from read name
-    #[clap(short = 'k', long)]
+    #[clap(short = 'k', long, display_order = 21)]
     pub keep_readname: bool,
 
     /// UMI distance. The maximin hamming distance between the UMI seqeunces used to
-    /// consider read(pairs) to be duplicates
-    #[clap(short = 'd', long, default_value = "1")]
+    /// consider read(pairs) to be duplicates.
+    #[clap(short = 'd', long, default_value_t = 1, value_name = "INT", display_order = 11)]
     pub umi_distance: usize,
 
     /// Optical duplicate pixel distance.
     /// Maximum distance between clusters to consider them optical duplicates
     /// use 100 for HiSeq/NextSeq, 2500 for NovaSeq.
-    /// use 0 to disable optical duplicate counting
-    /// Only affects metrics
-    #[clap(short = 'p', long, default_value = "100")]
+    /// use 0 to disable optical duplicate counting.
+    /// Only affects metrics.
+    #[clap(short = 'p', long, default_value_t = 100, value_name = "INT", display_order = 10)]
     pub pixel_distance: i32,
 
-    /// Do not add PG tag to header
-    #[clap(long)]
+    /// Do not add PG tag to header.
+    #[clap(long, display_order = 90)]
     pub no_pg: bool,
 
     /// Force compression when writing to stdout.
     /// Normally when writing to a pipe the BAM stream is written without compression. Toggle this
     /// flag when redirecting to a file and force compression of the stream.
-    #[clap(long)]
+    #[clap(long, display_order = 100)]
     pub force_compression: bool,
 }
 
