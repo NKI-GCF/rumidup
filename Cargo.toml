@@ -1,30 +1,33 @@
 [package]
 name = "rumidup"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Arno Velds <a.velds@nki.nl>", "Roel Kluin <r.kluin@nki.nl>"]
 edition = "2021"
-description = "Rumidup is a UMI aware mark duplicates tools for NGS sequencing data."
+description = "Rumidup is a UMI aware mark duplicates tool for NGS sequencing data."
 readme = "README.md"
 license = "MIT"
 keywords = ["command-line-utilities" ,"science"]
 exclude = ["publication"]
 publish = false
 
+[features]
+zlib-ng = ["flate2/zlib-ng"]
+
 [dependencies]
 anyhow = "1.0.43"
 atoi = "1.0.0"
 tokio = { version = "1.11", features = ["fs", "io-std", "macros", "rt-multi-thread"] }
-noodles-bam = { version = "0.20.0", features = ["async"] }
-noodles-core = "0.7.0"
-noodles-sam = "0.17.0"
-noodles-bgzf = { version = "0.13.0", features = ["async"] }
-clap = { version = "3.1.0", features = ["derive"] }
+noodles-bam = { version = "0.21.0", features = ["async"] }
+noodles-core = "0.8.0"
+noodles-sam = "0.18.0"
+noodles-bgzf = { version = "0.14.0", features = ["async"] }
+clap = { version = "3.1.0", features = ["cargo", "derive"] }
 thiserror = "1.0.28"
 regex = "1.5.4"
-itertools = "0.10.1"
-ahash = "0.7.6"
+ahash = "0.8.0"
 smallvec = "1.7.0"
 vec_map = "0.8.2"
+flate2 = { version = "1.0.24", optional = true}
 
 [profile.release]
 debug = 1
