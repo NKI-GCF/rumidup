@@ -253,7 +253,7 @@ pub fn isbase(b: &u8) -> bool {
 fn umi_from_readname(r: &[u8]) -> Option<(&[u8], &[u8])> {
     if let Some(lastcolon) = r.iter().rev().position(|&c| c == b':') {
         let pos = r.len() - lastcolon;
-        if lastcolon >= 3 && r[pos..].iter().all(isbase) {
+        if lastcolon >= 3 && r[pos..].iter().filter(|&&c| c != b'+').all(isbase) {
             let umi = &r[pos..];
             let clipped = &r[0..pos - 1];
             return Some((umi, clipped));
@@ -303,6 +303,13 @@ mod test {
             Some((
                 &b"CGACCTAGN"[..],
                 &b"A01260:10:HWNYWDRXX:1:1273:8205:25598"[..]
+            ))
+        );
+        assert_eq!(
+            umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25198:CGACC+TAGNA"[..]),
+            Some((
+                &b"CGACCTAGNA"[..],
+                &b"A01260:10:HWNYWDRXX:1:1273:8205:25198"[..]
             ))
         );
 
