@@ -16,7 +16,7 @@ It is our intention to publish to bioconda soon.
 ### Input
 Coordinate sorted BAM (file or stdin). When paired end reads are used the BAM
 file should hve the `MC` and `ms` tags added. This can usually be done by
-piping the usually name-sorted bam/sam output from you aligner through
+piping the usually name-sorted bam/sam output from the aligner through
 `samtools fixmate`.
 
 The UMI should be present in the BAM `RX` tag. Because the standard Illumina
