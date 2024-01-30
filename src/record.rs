@@ -308,7 +308,7 @@ mod test {
         assert_eq!(
             umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25198:CGACC+TAGNA"[..]),
             Some((
-                &b"CGACCTAGNA"[..],
+                &b"CGACC+TAGNA"[..],
                 &b"A01260:10:HWNYWDRXX:1:1273:8205:25198"[..]
             ))
         );
