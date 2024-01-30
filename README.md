@@ -15,8 +15,9 @@ It is our intention to publish to bioconda soon.
 
 ### Input
 Coordinate sorted BAM (file or stdin). When paired end reads are used the BAM
-file should hve the `MC` and `ms` tags added. This can be done by piping the
-unsorted bam through `samtools fixmate`.
+file should hve the `MC` and `ms` tags added. This can usually be done by
+piping the usually name-sorted bam/sam output from you aligner through
+`samtools fixmate`.
 
 The UMI should be present in the BAM `RX` tag. Because the standard Illumina
 BCLconvert program attaches the UMI sequence to the read name it is also
@@ -74,7 +75,7 @@ bwa mem ref r1.fastq.gz r2.fastq.gz | \
 `rumidup` collects all reads that map to the same genomic location. It then determines
 the reads fragment coordinates with the help of the mapped position and the
 CIGAR line information:
- - Unpaired reads take the 5' sequencing start and the mapped fragment end based
+ - Unpaired reads take the 5' sequencing start and the mapped fragment end base
  - Paired-end reads take the 5' sequencing start of both reads
 
 The reads are then grouped on these calculated coordinate pairs and for each
@@ -92,7 +93,7 @@ UMI sequence.
 Because the program works by parsing CIGAR lines and only considers the 5'
 sequencing start coordinates as the fragment coordinates in paired end mode
 `rumidup` is unaffected by quality trimming and soft-clipping. For unpaired reads
-the read end is also used for grouping. Soft clipping is would likely be
+the read end is also used for grouping. Soft clipping would likely be
 identical across duplicates, but quality trimming would not. This could result
 in shifting of coordinates and failing to group possible PCR duplicates so
 quality trimming is not recommended.
