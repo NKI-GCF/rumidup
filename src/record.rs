@@ -110,11 +110,14 @@ impl UmiRecord {
     /// Paired end reads require both MC and ms tags for rumidup to work
     pub fn extract_mate_tags(&mut self) -> Result<(), RecordError> {
         let data = self.record.data();
-        self.mate_score = Some(
-            data.get(Tag::try_from(*b"ms").unwrap())
-                .and_then(|f| f.value().as_int32())
-                .ok_or(RecordError::NoMateScore)?,
-        );
+
+        let ms_value =  data.get(Tag::try_from(*b"ms").unwrap())
+                .ok_or(RecordError::NoMateScore)?;
+        let ms = ms_value.value().as_int()
+                .ok_or(RecordError::MateScoreOutOfRange)
+                .and_then(|ms| i32::try_from(ms).map_err(|_| RecordError::MateScoreOutOfRange))?;
+        self.mate_score = Some(ms);
+
         self.mate_cigar = Some(
             data.get(Tag::MateCigar)
                 .and_then(|f| f.value().as_str())
@@ -282,9 +285,11 @@ pub enum RecordError {
     InvalidMateCigar,
     #[error("No ms (mate score) tag in record data. Run samtools fixmate")]
     NoMateScore,
+    #[error("Tag ms (mate score) out of range")]
+    MateScoreOutOfRange,
     #[error("No umi in record")]
     NoUmi,
-    #[error("No umi in record")]
+    #[error("No readname in record")]
     NoReadName(#[from] std::ffi::FromBytesWithNulError),
     #[error("Error parsing coords from readname")]
     NoCoords,
