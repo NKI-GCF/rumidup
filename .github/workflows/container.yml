@@ -1,0 +1,52 @@
+name: Publish container images
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '**.rs'
+
+  release:
+    types: [published]
+
+  workflow_dispatch:
+
+jobs:
+  push_to_registry:
+    if: github.repository == 'NKI-GCF/rumidup'
+    name: Push Docker image to Docker Hub / GitHub Docker Registry
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+
+      - name: Change repo name to lowercase and set environment variables
+        run: |
+          echo "REPO_LOWERCASE=${GITHUB_REPOSITORY,,}" >> ${GITHUB_ENV}
+          echo "REPOTITLE_LOWERCASE=$(basename ${GITHUB_REPOSITORY,,})" >> ${GITHUB_ENV}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push dev image
+        uses: docker/build-push-action@v5
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ env.REPO_LOWERCASE }}:dev
+            
+      - name: Push release image
+        uses: docker/build-push-action@v5
+        if: github.event_name == 'release'
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ env.REPO_LOWERCASE }}:${{ github.event.release.tag_name }}
+            ghcr.io/${{ env.REPO_LOWERCASE }}:${{ github.sha }}
+            ghcr.io/${{ env.REPO_LOWERCASE }}:latest
