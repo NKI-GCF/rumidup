@@ -134,7 +134,6 @@ jobs:
         mkdir "$staging"
 
         cp {README.md,LICENSE} "$staging/"
-        cp -R docs "$staging/docs"
 
         if [ "${{ matrix.target }}" = "i686-pc-windows-msvc" ] || [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ] || [ "${{ matrix.target }}" = "x86_64-pc-windows-msvc" ]; then
           echo "Target is Windows Based"
