@@ -39,7 +39,7 @@ depending on configuration.
                                   clusters to consider them optical duplicates use 100 for
                                   HiSeq/NextSeq, 2500 for NovaSeq. Use 0 to disable optical
                                   duplicate counting. Only affects metrics [default: 100]
-    -d, --umi-distance <INT>      UMI distance. The maximin hamming distance between the UMI
+    -d, --umi-distance <INT>      UMI distance. The maximum hamming distance between the UMI
                                   sequences used to consider read(pairs) to be duplicates [default:
                                   1]
     -x, --no-original-tag         When a UMI is corrected the original tag is written to the OX

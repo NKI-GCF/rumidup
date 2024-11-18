@@ -39,7 +39,7 @@ pub struct Config {
     pub force: bool,
 
     /// When a UMI is corrected the original tag is written to the OX field.
-    /// use --no-original-tag to suppress this.
+    /// Use --no-original-tag to suppress this.
     #[clap(short = 'x', long, display_order = 20)]
     pub no_original_tag: bool,
 
@@ -47,7 +47,7 @@ pub struct Config {
     #[clap(short = 'k', long, display_order = 21)]
     pub keep_readname: bool,
 
-    /// UMI distance. The maximin hamming distance between the UMI sequences used to
+    /// UMI distance. The maximum hamming distance between the UMI sequences used to
     /// consider read(pairs) to be duplicates.
     #[clap(short = 'd', long, default_value_t = 1, value_name = "INT", display_order = 11)]
     pub umi_distance: usize,
