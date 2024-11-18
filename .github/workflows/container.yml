@@ -2,10 +2,8 @@ name: Publish container images
 
 on:
   push:
-    branches:
-      - dev
-    paths:
-      - '**.rs'
+    tags:
+      - 'v*'
 
   release:
     types: [published]
