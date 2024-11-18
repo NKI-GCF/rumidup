@@ -17,6 +17,7 @@ use crate::{
     record::{BamRecord, ReadName, RecordError, UmiRecord},
 };
 
+#[rustfmt::skip::attributes(clap)]
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Config {

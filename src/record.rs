@@ -111,11 +111,14 @@ impl UmiRecord {
     pub fn extract_mate_tags(&mut self) -> Result<(), RecordError> {
         let data = self.record.data();
 
-        let ms_value =  data.get(Tag::try_from(*b"ms").unwrap())
-                .ok_or(RecordError::NoMateScore)?;
-        let ms = ms_value.value().as_int()
-                .ok_or(RecordError::MateScoreOutOfRange)
-                .and_then(|ms| i32::try_from(ms).map_err(|_| RecordError::MateScoreOutOfRange))?;
+        let ms_value = data
+            .get(Tag::try_from(*b"ms").unwrap())
+            .ok_or(RecordError::NoMateScore)?;
+        let ms = ms_value
+            .value()
+            .as_int()
+            .ok_or(RecordError::MateScoreOutOfRange)
+            .and_then(|ms| i32::try_from(ms).map_err(|_| RecordError::MateScoreOutOfRange))?;
         self.mate_score = Some(ms);
 
         self.mate_cigar = Some(
