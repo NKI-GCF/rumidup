@@ -34,11 +34,11 @@ pub struct Config {
     pub metrics: Option<PathBuf>,
 
     /// Ignore previous duplicate marking applied to BAM file. This information is extracted from
-    /// the header. Use --force to redoing duplicate marking.
+    /// the header. Use --force to redo duplicate marking.
     #[clap(short, long, display_order = 50)]
     pub force: bool,
 
-    /// When a UMI is corrected the original tag is writtento the OX field.
+    /// When a UMI is corrected the original tag is written to the OX field.
     /// use --no-original-tag to suppress this.
     #[clap(short = 'x', long, display_order = 20)]
     pub no_original_tag: bool,
@@ -47,7 +47,7 @@ pub struct Config {
     #[clap(short = 'k', long, display_order = 21)]
     pub keep_readname: bool,
 
-    /// UMI distance. The maximin hamming distance between the UMI seqeunces used to
+    /// UMI distance. The maximin hamming distance between the UMI sequences used to
     /// consider read(pairs) to be duplicates.
     #[clap(short = 'd', long, default_value_t = 1, value_name = "INT", display_order = 11)]
     pub umi_distance: usize,
@@ -55,7 +55,7 @@ pub struct Config {
     /// Optical duplicate pixel distance.
     /// Maximum distance between clusters to consider them optical duplicates
     /// use 100 for HiSeq/NextSeq, 2500 for NovaSeq.
-    /// use 0 to disable optical duplicate counting.
+    /// Use 0 to disable optical duplicate counting.
     /// Only affects metrics.
     #[clap(short = 'p', long, default_value_t = 100, value_name = "INT", display_order = 10)]
     pub pixel_distance: i32,
