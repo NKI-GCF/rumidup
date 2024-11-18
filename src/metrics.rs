@@ -71,7 +71,7 @@ impl Metrics {
         let unique_read_pairs = ((self.paired_reads_examined - self.read_pair_duplicates) / 2
             + self.unpaired_reads_examined
             - self.unpaired_read_duplicates) as f64;
-        let read_pair_duplicates = (read_pairs - unique_read_pairs) as f64;
+        let read_pair_duplicates = read_pairs - unique_read_pairs;
 
         if read_pairs > 0.0 && read_pair_duplicates > 0.0 {
             let mut m = 1.0f64;
