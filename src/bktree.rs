@@ -254,23 +254,21 @@ fn abs_diff<T: Ord + std::ops::Sub<Output = T>>(a: T, b: T) -> T {
     }
 }
 
-pub fn dist(a: &[u8], b: &[u8]) -> usize {
-    let la = a.len();
-    let lb = b.len();
-    if la == lb {
-        a.iter()
-            .zip(b.iter())
-            .filter(|(&a, &b)| a == b'N' || b == b'N' || a != b)
-            .count()
-    } else {
-        std::cmp::max(la, lb)
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
+    #[test]
+    fn str_dist() {
+        // dire
+        assert_eq!("CGAT".dist(&"CGAT"), 0);
+        assert_eq!("CGTT".dist(&"CGAT"), 1);
+        assert_eq!("CCCC".dist(&"TTTT"), 4);
+        assert_eq!("CGAT".dist(&"CGATT"), 5);
+        assert_eq!("CGTT".dist(&"CGATT"), 5);
+
+    }
 
     #[test]
     fn it_works() {
@@ -279,8 +277,22 @@ mod tests {
         tree.insert("CGAT");
         tree.insert("CAAT");
         tree.insert("TTTA");
-        println!("{:#?}", tree);
+
+        // number of entries
         assert_eq!(tree.umis.len(), 3);
+
+        // unique entry
+        assert_eq!(tree.umis[1].count(), 1);
+
+        // combined entry
+        assert_eq!(tree.umis[0].count(), 2);
+        let cb: SmallVec<[&str; 4]> = smallvec!["CGAT", "CGAT"];
+        assert_eq!(tree.umis[0].values(), &cb);
+        // or using the idex trait
+        assert_eq!(tree[0], cb);
+
+        // drain the tree's inserted values
+        assert_eq!(tree.drain().collect::<Vec<_>>() , vec!["CGAT", "CGAT", "CAAT","TTTA"]);
     }
 
     #[test]
