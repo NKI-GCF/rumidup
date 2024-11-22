@@ -267,7 +267,6 @@ mod tests {
         assert_eq!("CCCC".dist(&"TTTT"), 4);
         assert_eq!("CGAT".dist(&"CGATT"), 5);
         assert_eq!("CGTT".dist(&"CGATT"), 5);
-
     }
 
     #[test]
@@ -292,7 +291,10 @@ mod tests {
         assert_eq!(tree[0], cb);
 
         // drain the tree's inserted values
-        assert_eq!(tree.drain().collect::<Vec<_>>() , vec!["CGAT", "CGAT", "CAAT","TTTA"]);
+        assert_eq!(
+            tree.drain().collect::<Vec<_>>(),
+            vec!["CGAT", "CGAT", "CAAT", "TTTA"]
+        );
     }
 
     #[test]

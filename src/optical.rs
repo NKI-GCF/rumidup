@@ -195,23 +195,24 @@ mod tests {
 
         let dc = DuplicateClusters::new(
             list.clone()
-            .into_iter()
-            .zip(onetile.into_iter())
-            .map(|(coord, tile)| Location { tile, coord } ));
+                .into_iter()
+                .zip(onetile.into_iter())
+                .map(|(coord, tile)| Location { tile, coord }),
+        );
 
         assert_eq!(dc.count_optical_dups(50), 1);
-        assert_eq!(dc.optical_cluster_ids(50), vec![0,0,1]);
-
+        assert_eq!(dc.optical_cluster_ids(50), vec![0, 0, 1]);
 
         let twotiles = vec![vec![1], vec![2], vec![1]];
         let dc = DuplicateClusters::new(
             list.clone()
-            .into_iter()
-            .zip(twotiles.into_iter())
-            .map(|(coord, tile)| Location { tile, coord } ));
+                .into_iter()
+                .zip(twotiles.into_iter())
+                .map(|(coord, tile)| Location { tile, coord }),
+        );
 
         assert_eq!(dc.count_optical_dups(50), 0);
         assert_eq!(dc.count_optical_dups(150), 1);
-        assert_eq!(dc.optical_cluster_ids(150), vec![0,1,0]);
+        assert_eq!(dc.optical_cluster_ids(150), vec![0, 1, 0]);
     }
 }
