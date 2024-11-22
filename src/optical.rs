@@ -170,13 +170,48 @@ mod tests {
         let mut o = OpticalClusters::new(list.clone());
         o.cluster(2);
         assert_eq!(o.count_optical_dups(), 1);
+        assert_eq!(o.optical_cluster_ids(), vec![0, 0, 1]);
 
         let mut o = OpticalClusters::new(list.clone());
         o.cluster(200);
         assert_eq!(o.count_optical_dups(), 2);
+        assert_eq!(o.optical_cluster_ids(), vec![0, 0, 0]);
 
         let mut o = OpticalClusters::new(list.clone());
         o.cluster(0);
         assert_eq!(o.count_optical_dups(), 0);
+        assert_eq!(o.optical_cluster_ids(), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn tile_duplicates() {
+        let list = vec![
+            Coord { x: 100, y: 100 },
+            Coord { x: 100, y: 101 },
+            Coord { x: 200, y: 200 },
+        ];
+
+        let onetile = vec![vec![1]; 3];
+
+        let dc = DuplicateClusters::new(
+            list.clone()
+            .into_iter()
+            .zip(onetile.into_iter())
+            .map(|(coord, tile)| Location { tile, coord } ));
+
+        assert_eq!(dc.count_optical_dups(50), 1);
+        assert_eq!(dc.optical_cluster_ids(50), vec![0,0,1]);
+
+
+        let twotiles = vec![vec![1], vec![2], vec![1]];
+        let dc = DuplicateClusters::new(
+            list.clone()
+            .into_iter()
+            .zip(twotiles.into_iter())
+            .map(|(coord, tile)| Location { tile, coord } ));
+
+        assert_eq!(dc.count_optical_dups(50), 0);
+        assert_eq!(dc.count_optical_dups(150), 1);
+        assert_eq!(dc.optical_cluster_ids(150), vec![0,1,0]);
     }
 }
