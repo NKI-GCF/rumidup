@@ -1,7 +1,7 @@
 pub use noodles_core::Position;
 pub use noodles_sam::alignment::Record as BamRecord;
 use noodles_sam::record::{
-    data::field::{Tag, Value},
+    data::field::{tag, Tag, Value},
     Cigar,
 };
 pub use noodles_sam::record::{Flags, ReadName};
@@ -75,7 +75,7 @@ impl UmiRecord {
     /// considered to be the UMI sequence (this is the BCLconvert default). If this looks like a
     /// umi the sequence is put into an RX tag and (optionally) removed from the readname
     pub fn extract_umi(&mut self, edit_readname: bool) -> Result<(), RecordError> {
-        if let Some(rx) = self.record.data().get(Tag::UmiSequence) {
+        if let Some(rx) = self.record.data().get(&tag::UMI_SEQUENCE) {
             if let Some(umi) = rx.as_str().map(|v| v.as_bytes()) {
                 self.umi.extend(umi);
             } else {
@@ -94,7 +94,7 @@ impl UmiRecord {
                 }
                 self.umi.extend(umi);
                 self.record.data_mut().insert(
-                    Tag::UmiSequence,
+                    tag::UMI_SEQUENCE,
                     Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap(),
                 );
             } else {
@@ -112,7 +112,7 @@ impl UmiRecord {
         let data = self.record.data();
 
         let ms_value = data
-            .get(Tag::try_from(*b"ms").unwrap())
+            .get(&Tag::try_from(*b"ms").unwrap())
             .ok_or(RecordError::NoMateScore)?;
         let ms = ms_value
             .as_int()
@@ -121,7 +121,7 @@ impl UmiRecord {
         self.mate_score = Some(ms);
 
         self.mate_cigar = Some(
-            data.get(Tag::MateCigar)
+            data.get(&tag::MATE_CIGAR)
                 .and_then(|f| f.as_str())
                 .map(|s| s.parse().map_err(|_| RecordError::NoMateCigar))
                 .transpose()?
@@ -240,11 +240,11 @@ impl UmiRecord {
         let data = self.record.data_mut();
 
         let old = data
-            .insert(Tag::UmiSequence, Value::String(umi.into()))
+            .insert(tag::UMI_SEQUENCE, Value::String(umi.into()))
             .unwrap();
         if original_tag {
             data.insert(
-                Tag::OriginalUmiBarcodeSequence,
+                tag::ORIGINAL_UMI_BARCODE_SEQUENCE,
                 Value::String(old.1.as_str().unwrap().to_owned()),
             );
         }

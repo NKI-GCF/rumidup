@@ -120,7 +120,11 @@ where
     /// Read a new record from the stream and return it.
     async fn read_from_bam(&mut self) -> io::Result<Option<NoodlesRecord>> {
         let mut record = NoodlesRecord::default();
-        match self.in_bam.read_record(&mut record).await? {
+        match self
+            .in_bam
+            .read_record(self.header.as_ref(), &mut record)
+            .await?
+        {
             0 => Ok(None),
             _n => Ok(Some(record)),
         }

@@ -2,7 +2,10 @@ use std::str::FromStr;
 
 use ahash::AHashMap;
 pub use noodles_sam::header::ParseError;
-use noodles_sam::header::{Header, record::value::map::{Map, Program}};
+use noodles_sam::header::{
+    record::value::map::{Map, Program},
+    Header,
+};
 
 pub struct BamHeader(Header);
 
@@ -203,13 +206,18 @@ mod test {
 
         h.add_rumidup_pg("rumidup", "1.0");
         assert_eq!(h.as_ref().programs().iter().count(), 6);
-        assert_eq!(h.as_ref().programs().last().unwrap().1.previous_id(), Some("samtools.3"));
+        assert_eq!(
+            h.as_ref().programs().last().unwrap().1.previous_id(),
+            Some("samtools.3")
+        );
 
         h.add_rumidup_pg("rumidup", "1.0");
         assert_eq!(h.as_ref().programs().last().unwrap().0, "rumidup.1");
-        assert_eq!(h.as_ref().programs().last().unwrap().1.previous_id(), Some("rumidup"));
+        assert_eq!(
+            h.as_ref().programs().last().unwrap().1.previous_id(),
+            Some("rumidup")
+        );
     }
-
 
     #[test]
     fn detect_previous_mdup() {
@@ -238,24 +246,24 @@ mod test {
                 .add_program(
                     "samtools",
                     Map::<Program>::builder()
-                    .set_previous_id("bwa")
-                    .build()
-                    .unwrap(),
+                        .set_previous_id("bwa")
+                        .build()
+                        .unwrap(),
                 )
                 .add_program(
                     "second_child",
                     Map::<Program>::builder()
-                    .set_previous_id("second_root")
-                    .build()
-                    .unwrap(),
+                        .set_previous_id("second_root")
+                        .build()
+                        .unwrap(),
                 )
                 .add_program("second_root", Map::<Program>::default())
                 .add_program(
                     "wrong_parent",
                     Map::<Program>::builder()
-                    .set_previous_id("notexist")
-                    .build()
-                    .unwrap(),
+                        .set_previous_id("notexist")
+                        .build()
+                        .unwrap(),
                 )
                 .build(),
         );
