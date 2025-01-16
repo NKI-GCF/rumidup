@@ -66,11 +66,11 @@ where
         if let Some(cmd) = exe_info {
             header.add_rumidup_pg(&cmd.command_line, &cmd.version)
         }
-        let mut builder = BgzfAsyncWriter::builder(write);
+        let mut builder = noodles_bgzf::r#async::writer::Builder::default();
         if !compress_out {
             builder = builder.set_compression_level(CompressionLevel::none());
         }
-        let writer = builder.build();
+        let writer = builder.build_with_writer(write);
         let mut out_bam = NoodlesAsyncWriter::from(writer);
         out_bam.write_header(header.as_ref()).await?;
         out_bam

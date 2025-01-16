@@ -1,7 +1,7 @@
 pub use noodles_core::Position;
 pub use noodles_sam::alignment::Record as BamRecord;
 use noodles_sam::record::{
-    data::field::{Field, Tag, Value},
+    data::field::{Tag, Value},
     Cigar,
 };
 pub use noodles_sam::record::{Flags, ReadName};
@@ -76,7 +76,7 @@ impl UmiRecord {
     /// umi the sequence is put into an RX tag and (optionally) removed from the readname
     pub fn extract_umi(&mut self, edit_readname: bool) -> Result<(), RecordError> {
         if let Some(rx) = self.record.data().get(Tag::UmiSequence) {
-            if let Some(umi) = rx.value().as_str().map(|v| v.as_bytes()) {
+            if let Some(umi) = rx.as_str().map(|v| v.as_bytes()) {
                 self.umi.extend(umi);
             } else {
                 return Err(RecordError::NoUmi);
@@ -93,10 +93,10 @@ impl UmiRecord {
                     self.record.read_name_mut().replace(newname);
                 }
                 self.umi.extend(umi);
-                self.record.data_mut().insert(Field::new(
+                self.record.data_mut().insert(
                     Tag::UmiSequence,
                     Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap(),
-                ));
+                );
             } else {
                 return Err(RecordError::NoUmi);
             }
@@ -115,7 +115,6 @@ impl UmiRecord {
             .get(Tag::try_from(*b"ms").unwrap())
             .ok_or(RecordError::NoMateScore)?;
         let ms = ms_value
-            .value()
             .as_int()
             .ok_or(RecordError::MateScoreOutOfRange)
             .and_then(|ms| i32::try_from(ms).map_err(|_| RecordError::MateScoreOutOfRange))?;
@@ -123,7 +122,7 @@ impl UmiRecord {
 
         self.mate_cigar = Some(
             data.get(Tag::MateCigar)
-                .and_then(|f| f.value().as_str())
+                .and_then(|f| f.as_str())
                 .map(|s| s.parse().map_err(|_| RecordError::NoMateCigar))
                 .transpose()?
                 .ok_or(RecordError::NoMateCigar)?,
@@ -241,13 +240,13 @@ impl UmiRecord {
         let data = self.record.data_mut();
 
         let old = data
-            .insert(Field::new(Tag::UmiSequence, Value::String(umi.into())))
+            .insert(Tag::UmiSequence, Value::String(umi.into()))
             .unwrap();
         if original_tag {
-            data.insert(Field::new(
+            data.insert(
                 Tag::OriginalUmiBarcodeSequence,
-                Value::String(old.value().as_str().unwrap().to_owned()),
-            ));
+                Value::String(old.1.as_str().unwrap().to_owned()),
+            );
         }
     }
 }
