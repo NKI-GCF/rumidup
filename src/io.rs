@@ -4,7 +4,7 @@ use noodles_bgzf::{
     writer::CompressionLevel, AsyncReader as BgzfAsyncReader, AsyncWriter as BgzfAsyncWriter,
 };
 use noodles_core::position::Position;
-use noodles_sam::{alignment::record::Record as NoodlesRecord, header::ReferenceSequences};
+use noodles_sam::alignment::record_buf::RecordBuf as NoodlesRecord;
 use thiserror::Error;
 use tokio::io::{self, AsyncRead, AsyncWrite};
 
@@ -20,7 +20,7 @@ where
     out_bam: NoodlesWriter<W>,
     next_record: Option<NoodlesRecord>,
     header: BamHeader,
-    pub reference_sequences: ReferenceSequences,
+    //pub reference_sequences: ReferenceSequences,
 }
 
 type NoodlesReader<R> = NoodlesAsyncReader<BgzfAsyncReader<R>>;
@@ -49,10 +49,10 @@ where
         exe_info: Option<CmdInfo>,
     ) -> Result<BamIo<R, W>, BamIoError> {
         let mut in_bam = NoodlesAsyncReader::new(read);
-        let header_string = in_bam.read_header().await?;
-        let reference_sequences = in_bam.read_reference_sequences().await?;
+        let mut header: BamHeader = in_bam.read_header().await?.into();
+        //let reference_sequences = in_bam.read_reference_sequences().await?;
 
-        let mut header: BamHeader = header_string.parse()?;
+        //let mut header: BamHeader = header_string.parse()?;
         if let Some(pg) = header.detect_markdups() {
             eprintln!(
                 "Probable previous markduplictes detected in PG lines:\n{}",
@@ -73,16 +73,17 @@ where
         let writer = builder.build_with_writer(write);
         let mut out_bam = NoodlesAsyncWriter::from(writer);
         out_bam.write_header(header.as_ref()).await?;
+        /*
         out_bam
             .write_reference_sequences(&reference_sequences)
             .await?;
-
+        */
         Ok(BamIo {
             in_bam,
             out_bam,
             next_record: None,
             header,
-            reference_sequences,
+            //reference_sequences,
         })
     }
 
@@ -122,7 +123,7 @@ where
         let mut record = NoodlesRecord::default();
         match self
             .in_bam
-            .read_record(self.header.as_ref(), &mut record)
+            .read_record_buf(self.header.as_ref(), &mut record)
             .await?
         {
             0 => Ok(None),
@@ -163,7 +164,7 @@ where
 
     pub async fn write_record(&mut self, record: &NoodlesRecord) -> io::Result<()> {
         self.out_bam
-            .write_record(self.header.as_ref(), record)
+            .write_alignment_record(self.header.as_ref(), record)
             .await
     }
 

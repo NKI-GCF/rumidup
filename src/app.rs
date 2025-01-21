@@ -340,7 +340,7 @@ impl App {
                 MarkResult::Duplicate(umi) => {
                     if umi.is_corrected() {
                         self.umirecords[i]
-                            .correct_barcode_umi(umi.to_string(), !self.config.no_original_tag);
+                            .correct_barcode_umi(&umi.to_string(), !self.config.no_original_tag);
                         self.metrics.count(Status::CorrectedUmi);
                     }
                     self.umirecords[i].flag_dup();
@@ -350,7 +350,7 @@ impl App {
                 MarkResult::OpticalDuplicate(umi) => {
                     if umi.is_corrected() {
                         self.umirecords[i]
-                            .correct_barcode_umi(umi.to_string(), !self.config.no_original_tag);
+                            .correct_barcode_umi(&umi.to_string(), !self.config.no_original_tag);
                         self.metrics.count(Status::CorrectedUmi);
                     }
                     self.umirecords[i].flag_dup();
@@ -360,7 +360,7 @@ impl App {
                 MarkResult::Unique(umi) => {
                     if umi.is_corrected() {
                         self.umirecords[i]
-                            .correct_barcode_umi(umi.to_string(), !self.config.no_original_tag);
+                            .correct_barcode_umi(&umi.to_string(), !self.config.no_original_tag);
                         self.metrics.count(Status::CorrectedUmi);
                     }
                     self.umirecords[i].unflag_dup();
@@ -371,11 +371,11 @@ impl App {
                 }
                 MarkResult::Failed => eprintln!(
                     "Record failed to parse usable coordinates {}, rumidup skipped this record, but it might indicate problems with the BAM file",
-                    self.umirecords[i].read_name()
+                    self.umirecords[i].display_name()
                 ),
                 MarkResult::Unknown(_) => eprintln!(
                     "Record still marked unknown after dedup: {}. This is a BUG!",
-                    self.umirecords[i].read_name()
+                    self.umirecords[i].display_name()
                 ),
             }
         }

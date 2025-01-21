@@ -1,16 +1,14 @@
 pub use noodles_core::Position;
-pub use noodles_sam::alignment::Record as BamRecord;
-use noodles_sam::record::{
-    data::field::{tag, Tag, Value},
-    Cigar,
-};
-pub use noodles_sam::record::{Flags, ReadName};
+use noodles_sam::alignment::record::data::field::Tag;
+pub use noodles_sam::alignment::record::Flags;
+pub use noodles_sam::alignment::record_buf::Name as ReadName;
+pub use noodles_sam::alignment::record_buf::RecordBuf as BamRecord;
+use noodles_sam::alignment::record_buf::{data::field::Value, Cigar};
+use noodles_sam::record::Cigar as RawCigar;
 use thiserror::Error;
 
 use crate::bktree::Dist;
 use crate::optical::Location;
-
-//pub type ReadName = Vec<u8>;
 
 #[derive(Debug)]
 pub struct UmiRecord {
@@ -75,28 +73,25 @@ impl UmiRecord {
     /// considered to be the UMI sequence (this is the BCLconvert default). If this looks like a
     /// umi the sequence is put into an RX tag and (optionally) removed from the readname
     pub fn extract_umi(&mut self, edit_readname: bool) -> Result<(), RecordError> {
-        if let Some(rx) = self.record.data().get(&tag::UMI_SEQUENCE) {
-            if let Some(umi) = rx.as_str().map(|v| v.as_bytes()) {
-                self.umi.extend(umi);
+        if let Some(rx) = self.record.data().get(&Tag::UMI_SEQUENCE) {
+            if let Value::String(ref umi) = rx {
+                self.umi.extend(umi.as_slice());
             } else {
                 return Err(RecordError::NoUmi);
             }
         } else if let Some(read_name) = self
             .record
-            .read_name()
+            .name()
             .map(|r| AsRef::<[u8]>::as_ref(r).to_vec())
         {
             if let Some((umi, clipped)) = umi_from_readname(&read_name) {
                 if edit_readname {
-                    let newname =
-                        ReadName::try_new(clipped).expect("Error using UMI clipped readname");
-                    self.record.read_name_mut().replace(newname);
+                    self.record.name_mut().replace(clipped.into());
                 }
                 self.umi.extend(umi);
-                self.record.data_mut().insert(
-                    tag::UMI_SEQUENCE,
-                    Value::try_from(String::from_utf8_lossy(umi).to_string()).unwrap(),
-                );
+                self.record
+                    .data_mut()
+                    .insert(Tag::UMI_SEQUENCE, Value::from(umi.to_vec()));
             } else {
                 return Err(RecordError::NoUmi);
             }
@@ -112,7 +107,7 @@ impl UmiRecord {
         let data = self.record.data();
 
         let ms_value = data
-            .get(&Tag::try_from(*b"ms").unwrap())
+            .get(&Tag::from(*b"ms"))
             .ok_or(RecordError::NoMateScore)?;
         let ms = ms_value
             .as_int()
@@ -121,11 +116,17 @@ impl UmiRecord {
         self.mate_score = Some(ms);
 
         self.mate_cigar = Some(
-            data.get(&tag::MATE_CIGAR)
-                .and_then(|f| f.as_str())
-                .map(|s| s.parse().map_err(|_| RecordError::NoMateCigar))
-                .transpose()?
-                .ok_or(RecordError::NoMateCigar)?,
+            data.get(&Tag::MATE_CIGAR)
+                .ok_or(RecordError::NoMateCigar)
+                .and_then(|v| {
+                    if let Value::String(cigar) = v {
+                        RawCigar::new(cigar.as_slice())
+                            .try_into()
+                            .map_err(|_| RecordError::NoMateCigar)
+                    } else {
+                        Err(RecordError::NoMateCigar)
+                    }
+                })?,
         );
         Ok(())
     }
@@ -146,7 +147,11 @@ impl UmiRecord {
     }
 
     pub fn read_name(&self) -> &ReadName {
-        self.record.read_name().unwrap()
+        self.record.name().unwrap()
+    }
+
+    pub fn display_name(&self) -> String {
+        String::from_utf8_lossy(self.read_name().as_ref()).to_string()
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {
@@ -219,7 +224,7 @@ impl UmiRecord {
             .quality_scores()
             .as_ref()
             .iter()
-            .map(|&s| i32::from(u8::from(s)))
+            .map(|&s| i32::from(s))
             .sum::<i32>()
             + self.mate_score.unwrap_or(0)
     }
@@ -236,17 +241,12 @@ impl UmiRecord {
         self.record.flags_mut().set(Flags::DUPLICATE, false);
     }
 
-    pub fn correct_barcode_umi<T: Into<String>>(&mut self, umi: T, original_tag: bool) {
+    pub fn correct_barcode_umi(&mut self, umi: &str, original_tag: bool) {
         let data = self.record.data_mut();
 
-        let old = data
-            .insert(tag::UMI_SEQUENCE, Value::String(umi.into()))
-            .unwrap();
+        let old = data.insert(Tag::UMI_SEQUENCE, Value::from(umi)).unwrap();
         if original_tag {
-            data.insert(
-                tag::ORIGINAL_UMI_BARCODE_SEQUENCE,
-                Value::String(old.1.as_str().unwrap().to_owned()),
-            );
+            data.insert(Tag::ORIGINAL_UMI_BARCODE_SEQUENCE, old.1);
         }
     }
 }
