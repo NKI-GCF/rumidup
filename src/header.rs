@@ -1,4 +1,3 @@
-use ahash::AHashMap;
 use noodles_sam::header::record::value::map::program::tag as program_tag;
 pub use noodles_sam::header::ParseError;
 use noodles_sam::header::{
@@ -25,125 +24,26 @@ impl BamHeader {
     pub fn detect_markdups(&self) -> Option<String> {
         self.0
             .programs()
+            .as_ref()
             .values()
             .find(|p| p.is_markdup())
             .map(|p| format!("{:?}", p))
     }
 
+    // FIXME convert to Result function
     pub fn add_rumidup_pg(&mut self, command_line: &str, version: &str) {
-        let pps = self.pg_chains();
-
-        if pps.is_empty() {
-            let id = self.next_rumidup_id();
-            self.0.programs_mut().insert(
-                id.into(),
+        self.0
+            .programs_mut()
+            .add(
+                "rumidup",
                 Map::<Program>::builder()
                     .insert(program_tag::NAME, b"rumidup")
                     .insert(program_tag::VERSION, version.as_bytes())
                     .insert(program_tag::COMMAND_LINE, command_line.as_bytes())
                     .build()
                     .expect("Error building program"),
-            );
-        } else {
-            for p in pps {
-                let id = self.next_rumidup_id();
-                self.0.programs_mut().insert(
-                    id.into(),
-                    Map::<Program>::builder()
-                        .insert(program_tag::NAME, b"rumidup")
-                        .insert(program_tag::VERSION, version.as_bytes())
-                        .insert(program_tag::COMMAND_LINE, command_line.as_bytes())
-                        .insert(program_tag::PREVIOUS_PROGRAM_ID, p.as_slice())
-                        .build()
-                        .expect("Error building program"),
-                );
-            }
-        }
-    }
-
-    fn pg_chains(&self) -> Vec<Vec<u8>> {
-        let programs = self.0.programs();
-
-        let mut chains: AHashMap<_, usize> = AHashMap::new();
-        let mut ids: Vec<_> = programs.keys().collect();
-
-        // extract all the chain heads (non or invalid PP)
-        ids.retain(|&id| {
-            if let Some(previous_id) = programs
-                .get(id)
-                .unwrap()
-                .other_fields()
-                .get(&program_tag::PREVIOUS_PROGRAM_ID)
-            {
-                //check invalid PP ref
-                if !programs.contains_key(previous_id) {
-                    eprintln!(
-                        "Error in PG chain. Previous id does not exist: {}",
-                        previous_id
-                    );
-                    chains.insert(previous_id.as_slice(), 1);
-                    false
-                } else {
-                    true
-                }
-            } else {
-                chains.insert(id, 1);
-                false
-            }
-        });
-
-        // append remainder to head until all programs are chained
-        while !ids.is_empty() {
-            ids.retain(|&id| {
-                let previous_id = programs[id]
-                    .other_fields()
-                    .get(&program_tag::PREVIOUS_PROGRAM_ID)
-                    .unwrap();
-                if let Some(mut chain) = chains.remove(previous_id.as_slice()) {
-                    chain += 1;
-                    chains.insert(id, chain);
-                    false
-                } else {
-                    true
-                }
-            })
-        }
-
-        // return the appenadable PG ids
-        match chains.len() {
-            0 => Vec::new(),
-            1 => vec![chains.iter().next().unwrap().0.to_vec()],
-            _ => {
-                // if a len>1 chains exists return those, else return all
-                if chains.values().any(|&l| l > 1) {
-                    chains
-                        .iter()
-                        .filter_map(|(s, &l)| if l > 1 { Some(s.to_vec()) } else { None })
-                        .collect()
-                } else {
-                    chains.keys().map(|s| s.to_vec()).collect()
-                }
-            }
-        }
-    }
-
-    fn next_rumidup_id(&self) -> Vec<u8> {
-        let mut count = 0;
-        let id = |ct| {
-            if ct > 0 {
-                format!("rumidup.{ct}").as_bytes().to_vec()
-            } else {
-                b"rumidup".to_vec()
-            }
-        };
-
-        let mut name = id(count);
-        while self.0.programs().contains_key(name.as_slice()) {
-            name = id(count);
-            count += 1;
-        }
-
-        name
+            )
+            .expect("Error adding program to header");
     }
 }
 
@@ -203,19 +103,22 @@ mod test {
     fn parse_and_add() {
         let mut h: BamHeader = HEADER.parse::<Header>().unwrap().into();
 
-        assert_eq!(h.as_ref().programs().iter().count(), 5);
+        assert_eq!(h.as_ref().programs().as_ref().iter().count(), 5);
 
         h.add_rumidup_pg("rumidup", "1.0");
-        assert_eq!(h.as_ref().programs().iter().count(), 6);
+        assert_eq!(h.as_ref().programs().as_ref().iter().count(), 6);
         assert!(
-            matches!(h.as_ref().programs().last().unwrap().1.other_fields().get(&program_tag::PREVIOUS_PROGRAM_ID),
+            matches!(h.as_ref().programs().as_ref().last().unwrap().1.other_fields().get(&program_tag::PREVIOUS_PROGRAM_ID),
             Some(v) if v == b"samtools.3")
         );
 
         h.add_rumidup_pg("rumidup", "1.0");
-        assert_eq!(h.as_ref().programs().last().unwrap().0, "rumidup.1");
+        assert_eq!(
+            h.as_ref().programs().as_ref().last().unwrap().0,
+            "rumidup-rumidup"
+        );
         assert!(
-            matches!(h.as_ref().programs().last().unwrap().1.other_fields().get(&program_tag::PREVIOUS_PROGRAM_ID),
+            matches!(h.as_ref().programs().as_ref().last().unwrap().1.other_fields().get(&program_tag::PREVIOUS_PROGRAM_ID),
             Some(v) if v == b"rumidup")
         );
     }
@@ -236,42 +139,5 @@ mod test {
         let pd = format!("{}{}", HEADER, PG_PICARD);
         let h: BamHeader = pd.parse::<Header>().unwrap().into();
         assert!(h.detect_markdups().is_some());
-    }
-
-    #[test]
-    fn pg_chains() {
-        let header = BamHeader::from(
-            noodles_sam::Header::builder()
-                .set_header(Default::default())
-                .add_program("bwa", Map::<Program>::default())
-                .add_program(
-                    "samtools",
-                    Map::<Program>::builder()
-                        .insert(program_tag::PREVIOUS_PROGRAM_ID, b"bwa".to_vec())
-                        .build()
-                        .unwrap(),
-                )
-                .add_program(
-                    "second_child",
-                    Map::<Program>::builder()
-                        .insert(program_tag::PREVIOUS_PROGRAM_ID, b"second_root".to_vec())
-                        .build()
-                        .unwrap(),
-                )
-                .add_program("second_root", Map::<Program>::default())
-                .add_program(
-                    "wrong_parent",
-                    Map::<Program>::builder()
-                        .insert(program_tag::PREVIOUS_PROGRAM_ID, b"notexist".to_vec())
-                        .build()
-                        .unwrap(),
-                )
-                .build(),
-        );
-
-        let chains = header.pg_chains();
-        assert!(chains.len() == 2);
-        assert!(chains.contains(&b"samtools".to_vec()));
-        assert!(chains.contains(&b"second_child".to_vec()));
     }
 }

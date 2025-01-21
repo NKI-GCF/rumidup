@@ -68,7 +68,7 @@ where
         }
         let mut builder = noodles_bgzf::r#async::writer::Builder::default();
         if !compress_out {
-            builder = builder.set_compression_level(CompressionLevel::none());
+            builder = builder.set_compression_level(CompressionLevel::NONE);
         }
         let writer = builder.build_with_writer(write);
         let mut out_bam = NoodlesAsyncWriter::from(writer);
