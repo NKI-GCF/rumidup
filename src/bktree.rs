@@ -163,7 +163,7 @@ pub struct TreePartitions<'a, T> {
     //work_parents: Vec<Option<(usize, usize)>>,
 }
 
-impl<'a, T> Iterator for TreePartitions<'a, T>
+impl<T> Iterator for TreePartitions<'_, T>
 where
     T: Dist,
 {
@@ -211,7 +211,7 @@ where
     }
 }
 
-impl<'a, T> TreePartitions<'a, T> {
+impl<T> TreePartitions<'_, T> {
     // FIXME tree pruning was a thing during development, code copied here but not fixed for
     // iterator, when performance is poor on large trees this may help
     #[allow(dead_code)]

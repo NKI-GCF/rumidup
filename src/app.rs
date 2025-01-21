@@ -14,8 +14,10 @@ use crate::{
     markdups::{CorrectedUmi, Dist, MarkResult, UmiClusters},
     metrics::{Metrics, Status},
     optical::DuplicateClusters,
-    record::{BamRecord, ReadName, RecordError, UmiRecord},
+    record::{BamRecord, RecordError, UmiRecord},
 };
+
+type ReadName = Vec<u8>;
 
 #[rustfmt::skip::attributes(clap)]
 #[derive(Parser, Debug)]
@@ -218,7 +220,7 @@ impl App {
 
                 if is_mapped_pair {
                     self.seen
-                        .insert(umirecord.read_name().clone(), result.clone());
+                        .insert(umirecord.read_name().to_vec(), result.clone());
                 }
             }
             self.record_results.push(result);

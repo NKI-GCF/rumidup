@@ -1,7 +1,6 @@
 pub use noodles_core::Position;
 use noodles_sam::alignment::record::data::field::Tag;
 pub use noodles_sam::alignment::record::Flags;
-pub use noodles_sam::alignment::record_buf::Name as ReadName;
 pub use noodles_sam::alignment::record_buf::RecordBuf as BamRecord;
 use noodles_sam::alignment::record_buf::{data::field::Value, Cigar};
 use noodles_sam::record::Cigar as RawCigar;
@@ -25,6 +24,7 @@ impl From<UmiRecord> for BamRecord {
     }
 }
 
+// FIXME move to optical.rs?
 impl TryFrom<&[u8]> for Location {
     type Error = RecordError;
     fn try_from(name: &[u8]) -> Result<Location, RecordError> {
@@ -134,7 +134,7 @@ impl UmiRecord {
     /// Extract the tile and coordinates when illumina read names are used. Can then be used for
     /// optical duplicate detection.
     pub fn extract_location(&mut self) -> Result<(), RecordError> {
-        self.location = Some(Location::try_from(self.read_name().as_ref())?);
+        self.location = Some(Location::try_from(self.read_name())?);
         Ok(())
     }
 
@@ -146,12 +146,12 @@ impl UmiRecord {
         self.record.flags()
     }
 
-    pub fn read_name(&self) -> &ReadName {
-        self.record.name().unwrap()
+    pub fn read_name(&self) -> &[u8] {
+        self.record.name().unwrap().as_ref()
     }
 
     pub fn display_name(&self) -> String {
-        String::from_utf8_lossy(self.read_name().as_ref()).to_string()
+        String::from_utf8_lossy(self.read_name()).to_string()
     }
 
     pub fn fragment_markers(&self) -> Option<(FragmentCoord, FragmentCoord)> {

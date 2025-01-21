@@ -70,7 +70,7 @@ where
         if !compress_out {
             builder = builder.set_compression_level(CompressionLevel::NONE);
         }
-        let writer = builder.build_with_writer(write);
+        let writer = builder.build_from_writer(write);
         let mut out_bam = NoodlesAsyncWriter::from(writer);
         out_bam.write_header(header.as_ref()).await?;
         /*
