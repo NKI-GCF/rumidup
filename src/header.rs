@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use noodles_sam::header::record::value::map::program::tag as program_tag;
 pub use noodles_sam::header::ParseError;
 use noodles_sam::header::{
@@ -20,14 +22,13 @@ impl AsRef<Header> for BamHeader {
 }
 
 impl BamHeader {
-    // FIXME: Check debug formatting or write custom formatter
     pub fn detect_markdups(&self) -> Option<String> {
         self.0
             .programs()
             .as_ref()
             .values()
             .find(|p| p.is_markdup())
-            .map(|p| format!("{:?}", p))
+            .map(|p| format!("{}", p.display()))
     }
 
     // FIXME convert to Result function
@@ -49,6 +50,7 @@ impl BamHeader {
 
 trait ProgramExt {
     fn is_markdup(&self) -> bool;
+    fn display(&self) -> String;
 }
 
 impl ProgramExt for Map<Program> {
@@ -76,6 +78,14 @@ impl ProgramExt for Map<Program> {
         }
 
         false
+    }
+
+    fn display(&self) -> String {
+        let mut s = String::from("@PG ");
+        for (t, v) in self.other_fields().iter() {
+            write!(s, " {}:{}", t, v).unwrap();
+        }
+        s
     }
 }
 
