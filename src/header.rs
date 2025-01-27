@@ -7,6 +7,8 @@ use noodles_sam::header::{
     Header,
 };
 
+use crate::io::BamIoError;
+
 pub struct BamHeader(Header);
 
 impl From<Header> for BamHeader {
@@ -28,23 +30,20 @@ impl BamHeader {
             .as_ref()
             .values()
             .find(|p| p.is_markdup())
-            .map(|p| format!("{}", p.display()))
+            .map(|p| p.display())
     }
 
-    // FIXME convert to Result function
-    pub fn add_rumidup_pg(&mut self, command_line: &str, version: &str) {
+    pub fn add_rumidup_pg(&mut self, command_line: &str, version: &str) -> Result<(), BamIoError> {
+        let pg = Map::<Program>::builder()
+            .insert(program_tag::NAME, b"rumidup")
+            .insert(program_tag::VERSION, version.as_bytes())
+            .insert(program_tag::COMMAND_LINE, command_line.as_bytes())
+            .build()
+            .map_err(|_| BamIoError::ProgramError)?;
         self.0
             .programs_mut()
-            .add(
-                "rumidup",
-                Map::<Program>::builder()
-                    .insert(program_tag::NAME, b"rumidup")
-                    .insert(program_tag::VERSION, version.as_bytes())
-                    .insert(program_tag::COMMAND_LINE, command_line.as_bytes())
-                    .build()
-                    .expect("Error building program"),
-            )
-            .expect("Error adding program to header");
+            .add("rumidup", pg)
+            .map_err(|_| BamIoError::ProgramError)
     }
 }
 
@@ -115,14 +114,14 @@ mod test {
 
         assert_eq!(h.as_ref().programs().as_ref().iter().count(), 5);
 
-        h.add_rumidup_pg("rumidup", "1.0");
+        h.add_rumidup_pg("rumidup", "1.0").unwrap();
         assert_eq!(h.as_ref().programs().as_ref().iter().count(), 6);
         assert!(
             matches!(h.as_ref().programs().as_ref().last().unwrap().1.other_fields().get(&program_tag::PREVIOUS_PROGRAM_ID),
             Some(v) if v == b"samtools.3")
         );
 
-        h.add_rumidup_pg("rumidup", "1.0");
+        h.add_rumidup_pg("rumidup", "1.0").unwrap();
         assert_eq!(
             h.as_ref().programs().as_ref().last().unwrap().0,
             "rumidup-rumidup"

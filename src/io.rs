@@ -64,7 +64,7 @@ where
         }
 
         if let Some(cmd) = exe_info {
-            header.add_rumidup_pg(&cmd.command_line, &cmd.version)
+            header.add_rumidup_pg(&cmd.command_line, &cmd.version)?;
         }
         let mut builder = noodles_bgzf::r#async::writer::Builder::default();
         if !compress_out {
@@ -181,6 +181,8 @@ pub enum BamIoError {
     ParseError(String),
     #[error("Error in BAM header")]
     HeaderError(#[from] header::ParseError),
+    #[error("Error adding Program to BAM header. Cycle in PG lines? Either re-run with --no-pg or check input file.")]
+    ProgramError,
     #[error("Markduplicates evidence present in BAM header")]
     MarkDupsDetected,
 }
