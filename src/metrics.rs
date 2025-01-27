@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io::{Error as IoError, Write};
 
 use crate::record::Flags;
 
@@ -156,5 +157,20 @@ impl Metrics {
             Status::ReadpairOpticalDuplicate => self.read_pair_optical_duplicates += count,
             Status::CorrectedUmi => self.corrected_umis += count,
         }
+    }
+
+    pub fn write_json<W: Write>(&self, mut w: W) -> Result<(), IoError> {
+        writeln!(w, "{{\"UNPAIRED_READS_EXAMINED\":{}, \"PAIRED_READS_EXAMINED\":{}, \"SECONDARY_OR_SUPPLEMENTARY_RDS\":{}, \"UNMAPPED_READS\":{}, \"UNPAIRED_READ_DUPLICATES\":{}, \"UNPAIRED_READ_OPTICAL_DUPLICATES\":{}, \"READ_PAIR_DUPLICATES\":{}, \"READ_PAIR_OPTICAL_DUPLICATES\":{}, \"CORRECTED_UMIS\":{}, \"FRACTION_DUPLICATION\":{}, \"ESTIMATED_LIBRARY_SIZE\":{}}}",
+            self.unpaired_reads_examined,
+            self.paired_reads_examined,
+            self.secondary_or_supplementary_rds,
+            self.unmapped_reads,
+            self.unpaired_read_duplicates,
+            self.unpaired_read_optical_duplicates,
+            self.read_pair_duplicates,
+            self.read_pair_optical_duplicates,
+            self.corrected_umis,
+            self.fraction_duplication(),
+            self.estimated_library_size())
     }
 }

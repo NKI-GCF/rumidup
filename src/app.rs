@@ -31,7 +31,8 @@ pub struct Config {
     #[clap(short, long, value_name = "FILE", display_order = 2)]
     pub output: Option<PathBuf>,
 
-    /// The duplication metrics file, if missing metrics will be written to stderr.
+    /// The duplication metrics file, use extension .json to write a JSON formatted file. If
+    /// missing metrics will be written to stderr.
     #[clap(short = 'm', long, value_name = "FILE", display_order = 3)]
     pub metrics: Option<PathBuf>,
 
@@ -396,9 +397,16 @@ impl App {
 
     fn write_report(&self) -> io::Result<()> {
         if let Some(path) = &self.config.metrics {
-            use std::io::Write;
             let mut mout = std::fs::File::create(path)?;
-            write!(mout, "{}", self.metrics)?;
+            if path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+            {
+                self.metrics.write_json(mout)?;
+            } else {
+                use std::io::Write;
+                write!(mout, "{}", self.metrics)?;
+            }
         } else {
             eprintln!("{}", self.metrics);
         }
