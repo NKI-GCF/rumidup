@@ -24,7 +24,7 @@ impl From<UmiRecord> for BamRecord {
     }
 }
 
-// FIXME move to optical.rs?
+/// Illumina readname to Location converter
 impl TryFrom<&[u8]> for Location {
     type Error = RecordError;
     fn try_from(name: &[u8]) -> Result<Location, RecordError> {
