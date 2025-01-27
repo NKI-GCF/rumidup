@@ -32,14 +32,13 @@ impl TryFrom<&[u8]> for Location {
         let mut e = name.split(|&b| b == b':').skip(3).take(4);
 
         let mut lanetile: Vec<u8> = e.next().ok_or(RecordError::NoCoords)?.to_vec();
+        lanetile.push(b':');
         lanetile.extend(e.next().ok_or(RecordError::NoCoords)?.iter().copied());
 
-        let x = String::from_utf8_lossy(e.next().ok_or(RecordError::NoCoords)?)
-            .parse()
+        let x: i32 = lexical_core::parse(e.next().ok_or(RecordError::NoCoords)?)
             .map_err(|_| RecordError::NoCoords)?;
 
-        let y = String::from_utf8_lossy(e.next().ok_or(RecordError::NoCoords)?)
-            .parse()
+        let y = lexical_core::parse(e.next().ok_or(RecordError::NoCoords)?)
             .map_err(|_| RecordError::NoCoords)?;
 
         Ok(Location::new(lanetile, x, y))
@@ -91,7 +90,7 @@ impl UmiRecord {
                 self.umi.extend(umi);
                 self.record
                     .data_mut()
-                    .insert(Tag::UMI_SEQUENCE, Value::from(umi.to_vec()));
+                    .insert(Tag::UMI_SEQUENCE, Value::String(umi.to_vec().into()));
             } else {
                 return Err(RecordError::NoUmi);
             }
@@ -244,7 +243,9 @@ impl UmiRecord {
     pub fn correct_barcode_umi(&mut self, umi: &str, original_tag: bool) {
         let data = self.record.data_mut();
 
-        let old = data.insert(Tag::UMI_SEQUENCE, Value::from(umi)).unwrap();
+        let old = data
+            .insert(Tag::UMI_SEQUENCE, Value::String(umi.into()))
+            .unwrap();
         if original_tag {
             data.insert(Tag::ORIGINAL_UMI_BARCODE_SEQUENCE, old.1);
         }
@@ -342,5 +343,14 @@ mod test {
             umi_from_readname(&b"A01260:10:HWNYWDRXX:1:1273:8205:25598:CC"[..]),
             None
         );
+    }
+
+    #[test]
+    fn location() {
+        let loc =
+            Location::try_from(&b"A01260:10:HWNYWDRXX:1:1273:8205:25198:CGACC+TAGNA"[..]).unwrap();
+        let testloc = Location::new(b"1:1273".to_vec(), 8205, 25198);
+
+        assert_eq!(loc, testloc);
     }
 }

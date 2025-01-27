@@ -28,6 +28,7 @@ ahash = "0.8.0"
 smallvec = "1.7.0"
 vec_map = "0.8.2"
 flate2 = { version = "1.0.24", optional = true}
+lexical-core = { version = "1.0.5", features = ["std", "parse-integers"], default = false }
 
 [profile.release]
 debug = 1

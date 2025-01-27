@@ -639,6 +639,7 @@ dependencies = [
  "anyhow",
  "clap",
  "flate2",
+ "lexical-core",
  "noodles-bam",
  "noodles-bgzf",
  "noodles-core",
